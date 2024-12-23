@@ -11,6 +11,7 @@ const ScrollView = vaxis.widgets.ScrollView;
 const Color = vaxis.Color;
 const Segment = vaxis.Segment;
 const Key = vaxis.Key;
+const Window = vaxis.Window;
 
 // pub const PanicGlobals = struct {
 //     vx: *vaxis.Vaxis,
@@ -138,8 +139,10 @@ pub fn main() !void {
 
     // var selected_item: u32 = 0;
 
-    const left_status_bar_text = "left status bar";
-    const right_status_bar_text: []const u8 = "right status bar";
+    const status_bar_view = StatusBarView{
+        .left_text = "left status bar",
+        .right_text = "right status bar",
+    };
 
     try tty_buffered_writer.flush();
     while (true) {
@@ -158,167 +161,49 @@ pub fn main() !void {
             },
 
             .winsize => |ws| try vx.resize(alloc, tty.anyWriter(), ws),
+
             else => {},
         }
 
-        const bg_default = Color{ .rgb = [_]u8{ 0x28, 0x28, 0x28 } }; // gruvbox bg0
-        const bg_status_bar = Color{ .rgb = [_]u8{ 0x66, 0x5c, 0x54 } }; // gruvbox bg3
-        const bg_left_pane = Color{ .rgb = [_]u8{ 0x3c, 0x38, 0x36 } }; // gruvbox bg1
-        const bg_selected = Color{ .rgb = [_]u8{ 0x7c, 0x67, 0x64 } }; // gruvbox bg4
+        const colors = Colors{};
 
         const win = vx.window();
         win.clear();
-        win.fill(.{ .style = .{ .bg = bg_default } });
-
-        // =-= status bar start
+        win.fill(.{ .style = .{ .bg = colors.bg_default } });
 
         const status_bar_height = 1;
-
         const status_bar = win.child(.{
             .x_off = 0,
             .y_off = win.height - status_bar_height,
             .width = win.width,
             .height = status_bar_height,
         });
-        status_bar.fill(.{ .style = .{ .bg = bg_status_bar } });
+        status_bar_view.draw(status_bar, colors);
 
-        _ = status_bar.printSegment(
-            .{
-                .text = left_status_bar_text,
-                .style = .{ .bg = bg_status_bar },
-            },
-            .{},
-        );
-
-        const right_status_bar_segment = status_bar.child(.{
-            .x_off = @intCast(status_bar.width - right_status_bar_text.len),
-            .width = @intCast(right_status_bar_text.len),
-            .height = status_bar_height,
-        });
-        _ = right_status_bar_segment.printSegment(
-            .{
-                .text = right_status_bar_text,
-                .style = .{ .bg = bg_status_bar },
-            },
-            .{},
-        );
-
-        // =-= status bar end
-
-        // =-= left pane start
-
-        const left_pane_width = 50;
-
-        const left_pane = win.child(.{
+        const tag_list = win.child(.{
             .x_off = 0,
             .y_off = 0,
-            .height = win.height - status_bar_height,
-            .width = left_pane_width,
+            .height = win.height - status_bar.height,
+            .width = 50,
         });
-        left_pane.fill(.{ .style = .{ .bg = bg_left_pane } });
-
-        // left pane items
-        var y: i17 = 0;
-        for (tag_list_view.tag_lists.items, 0..) |tag_list, tag_list_i| {
-            const is_current_tag_list =
-                tag_list_i == tag_list_view.list_index;
-            const tag_list_selected =
-                is_current_tag_list and tag_list_view.list_item_index == null;
-
-            const tag_list_bg = if (tag_list_selected)
-                bg_selected
-            else
-                bg_left_pane;
-
-            const tag_list_row = left_pane.child(.{
-                .x_off = 0,
-                .y_off = y,
-                .height = 1,
-                .width = left_pane_width,
-            });
-
-            _ = tag_list_row.print(
-                &.{
-                    .{
-                        .text = if (tag_list.expanded) "v " else "> ",
-                        .style = .{ .bg = tag_list_bg },
-                    },
-                    .{
-                        .text = tag_list.file_path,
-                        .style = .{ .bg = tag_list_bg },
-                    },
-                },
-                .{},
-            );
-            y += 1;
-
-            if (tag_list.expanded) {
-                for (tag_list.tag_items.items, 0..) |item, tag_item_i| {
-                    const tag_item_selected =
-                        if (tag_list_view.list_item_index) |index|
-                        is_current_tag_list and index == tag_item_i
-                    else
-                        false;
-
-                    const tag_item_bg = if (tag_item_selected)
-                        bg_selected
-                    else
-                        bg_left_pane;
-
-                    const tag_item_row = left_pane.child(.{
-                        .x_off = 0,
-                        .y_off = y,
-                        .height = 1,
-                        .width = left_pane_width,
-                    });
-
-                    _ = tag_item_row.print(
-                        &.{
-                            .{
-                                .text = "   ",
-                                .style = .{ .bg = tag_item_bg },
-                            },
-                            .{
-                                .text = item.tag,
-                                .style = .{ .bg = tag_item_bg },
-                            },
-                        },
-                        .{},
-                    );
-                    y += 1;
-                }
-            }
-
-            // const selected = i == selected_item;
-
-            // const bg = if (selected) bg_selected else bg_left_pane;
-
-            // const row = left_pane.child(.{
-            //     .x_off = 0,
-            //     .y_off = y,
-            //     .height = 1,
-            //     .width = 50,
-            // });
-            // row.fill(.{ .style = .{ .bg = bg } });
-            // const item_res = row.printSegment(
-            //     .{ .text = item, .style = .{ .bg = bg } },
-            //     .{},
-            // );
-            // if (item_res.overflow) {
-            //     right_status_bar_text = "warn: left pane item overflowed";
-            // }
-            // y += 1;
-        }
-
-        // =-= left pane end
+        tag_list_view.draw(tag_list, colors);
 
         try vx.render(tty_writer);
         try tty_buffered_writer.flush();
     }
 }
 
+const Colors = struct {
+    bg_default: Color = .{ .rgb = [_]u8{ 0x28, 0x28, 0x28 } }, // gruvbox bg0
+    bg_status_bar: Color = .{ .rgb = [_]u8{ 0x66, 0x5c, 0x54 } }, // gruvbox bg3
+    bg_tag_list: Color = .{ .rgb = [_]u8{ 0x3c, 0x38, 0x36 } }, // gruvbox bg1
+    bg_selected: Color = .{ .rgb = [_]u8{ 0x7c, 0x67, 0x64 } }, // gruvbox bg4
+};
+
 const TagListView = struct {
     list_index: u32 = 0,
+    // @FIXME: its worth looking into makeing this a ?u31, for space saving
+    //  see TagList.remembered_item_index
     list_item_index: ?u32 = null,
     tag_lists: ArrayListUnmanaged(TagList) = .{},
 
@@ -394,12 +279,91 @@ const TagListView = struct {
             current_tag_list.expanded = true;
         }
     }
+
+    pub fn draw(self: *TagListView, window: Window, colors: Colors) void {
+        window.fill(.{ .style = .{ .bg = colors.bg_tag_list } });
+
+        var y: i17 = 0;
+        for (self.tag_lists.items, 0..) |tag_list, tag_list_i| {
+            const is_current_tag_list =
+                tag_list_i == self.list_index;
+            const tag_list_selected =
+                is_current_tag_list and self.list_item_index == null;
+
+            const tag_list_bg = if (tag_list_selected)
+                colors.bg_selected
+            else
+                colors.bg_tag_list;
+
+            const tag_list_row = window.child(.{
+                .x_off = 0,
+                .y_off = y,
+                .height = 1,
+                .width = window.width,
+            });
+
+            _ = tag_list_row.print(
+                &.{
+                    .{
+                        .text = if (tag_list.expanded) "v " else "> ",
+                        .style = .{ .bg = tag_list_bg },
+                    },
+                    .{
+                        .text = tag_list.file_path,
+                        .style = .{ .bg = tag_list_bg },
+                    },
+                },
+                .{},
+            );
+            y += 1;
+
+            if (tag_list.expanded) {
+                for (tag_list.tag_items.items, 0..) |item, tag_item_i| {
+                    const tag_item_selected =
+                        if (self.list_item_index) |index|
+                        is_current_tag_list and index == tag_item_i
+                    else
+                        false;
+
+                    const tag_item_bg = if (tag_item_selected)
+                        colors.bg_selected
+                    else
+                        colors.bg_tag_list;
+
+                    const tag_item_row = window.child(.{
+                        .x_off = 0,
+                        .y_off = y,
+                        .height = 1,
+                        .width = window.width,
+                    });
+
+                    _ = tag_item_row.print(
+                        &.{
+                            .{
+                                .text = "   ",
+                                .style = .{ .bg = tag_item_bg },
+                            },
+                            .{
+                                .text = item.tag,
+                                .style = .{ .bg = tag_item_bg },
+                            },
+                        },
+                        .{},
+                    );
+                    y += 1;
+                }
+            }
+        }
+    }
 };
 
 const TagList = struct {
     file_path: []u8,
     tag_items: ArrayListUnmanaged(TagItem),
-    expanded: bool, // might be worth storing out of line, in TagListView
+    // @FIXME: might be worth storing out of line, in TagListView
+    expanded: bool,
+    // @FIXME: its worth looking into makeing this a ?u31, for space saving
+    //  see TagListView.list_item_index
     remembered_item_index: ?u32 = null,
 
     // pub fn deinit(self: *TagList, alloc: Allocator) void {
@@ -420,4 +384,35 @@ const TagItem = struct {
     //     if (self.author) |author| alloc.free(author);
     //     alloc.free(self.text);
     // }
+};
+
+const StatusBarView = struct {
+    // @TODO: Add support for both allocated and unallocated strings here
+    left_text: []const u8,
+    right_text: []const u8,
+
+    pub fn draw(self: *StatusBarView, window: Window, colors: Colors) void {
+        window.fill(.{ .style = .{ .bg = colors.bg_status_bar } });
+
+        _ = window.printSegment(
+            .{
+                .text = self.left_text,
+                .style = .{ .bg = colors.bg_status_bar },
+            },
+            .{},
+        );
+
+        const right_status_bar_segment = window.child(.{
+            .x_off = @intCast(window.width - self.right_text.len),
+            .width = @intCast(self.right_text.len),
+            .height = window.height,
+        });
+        _ = right_status_bar_segment.printSegment(
+            .{
+                .text = self.right_text,
+                .style = .{ .bg = colors.bg_status_bar },
+            },
+            .{},
+        );
+    }
 };
