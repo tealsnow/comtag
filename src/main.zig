@@ -1,6 +1,7 @@
 const builtin = @import("builtin");
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
 const vaxis = @import("vaxis");
 const Cell = vaxis.Cell;
@@ -8,6 +9,30 @@ const TextInput = vaxis.widgets.TextInput;
 const border = vaxis.widgets.border;
 const ScrollView = vaxis.widgets.ScrollView;
 const Color = vaxis.Color;
+const Segment = vaxis.Segment;
+
+// pub const PanicGlobals = struct {
+//     vx: *vaxis.Vaxis,
+//     tty: *std.io.AnyWriter,
+// };
+
+// var g_panic_globals: ?PanicGlobals = null;
+
+// pub fn panic(
+//     msg: []const u8,
+//     error_return_trace: ?*std.builtin.StackTrace,
+//     ret_addr: ?usize,
+// ) noreturn {
+//     if (g_panic_globals) |pg| {
+//         pg.vx.exitAltScreen(pg.tty.*) catch {};
+//         pg.vx.deinit(null, pg.tty.*);
+//     }
+
+//     if (std.meta.hasFn(std.builtin, "default_panic")) {
+//         std.builtin.default_panic(msg, error_return_trace, ret_addr);
+//     }
+//     std.debug.defaultPanic(msg, error_return_trace, ret_addr);
+// }
 
 // This can contain internal events as well as Vaxis events.
 // Internal events can be posted into the same queue as vaxis events to allow
@@ -23,12 +48,12 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     gpa.backing_allocator = std.heap.c_allocator;
     defer {
-        if (builtin.mode == .Debug) {
-            const deinit_status = gpa.deinit();
-            if (deinit_status == .leak) {
-                std.log.err("memory leak", .{});
-            }
-        }
+        // if (builtin.mode == .Debug) {
+        //     const deinit_status = gpa.deinit();
+        //     if (deinit_status == .leak) {
+        //         std.log.err("memory leak", .{});
+        //     }
+        // }
     }
     const alloc = gpa.allocator();
 
@@ -41,6 +66,8 @@ pub fn main() !void {
     var vx = try vaxis.init(alloc, .{});
     // null allocator in release to save time on exit
     defer vx.deinit(if (builtin.mode == .Debug) alloc else null, tty_writer);
+
+    // g_panic_globals = .{ .vx = &vx, .tty = &tty_writer };
 
     var loop: vaxis.Loop(Event) = .{
         .tty = &tty,
@@ -58,23 +85,62 @@ pub fn main() !void {
     // defer arena_allocator.deinit();
     // const arena = arena_allocator.allocator();
 
-    var list = std.ArrayList([]const u8).init(alloc);
-    defer list.deinit();
+    //
+
+    var tag_list1 = TagList{
+        .file_path = try std.fmt.allocPrint(alloc, "{s}", .{"src/main.zig"}),
+        .tag_items = .{},
+        .expanded = true,
+    };
+
+    var tag_list2 = TagList{
+        .file_path = try std.fmt.allocPrint(alloc, "{s}", .{"src/root.zig"}),
+        .tag_items = .{},
+        .expanded = false,
+    };
 
     for (0..20) |i| {
-        const str = try std.fmt.allocPrint(alloc, "item {d}", .{i});
-        try list.append(str);
-    }
-    defer {
-        for (list.items) |item| {
-            alloc.free(item);
-        }
+        const tag = if (i % 2 == 0)
+            "TODO"
+        else if (i % 3 == 0)
+            "FIXME"
+        else
+            "NOTE";
+        // const tag_alloc = try std.fmt.allocPrint(alloc, "{s}", .{tag});
+        const tag_alloc = try alloc.alloc(u8, tag.len);
+        @memcpy(tag_alloc, tag);
+
+        const author = if (i % 4 == 0)
+            try std.fmt.allocPrint(alloc, "{s}", .{"ketanr"})
+        else
+            null;
+
+        const text = try std.fmt.allocPrint(
+            alloc,
+            "{s}",
+            .{"this is a description of the tag"},
+        );
+
+        const tag_item = TagItem{
+            .tag = tag_alloc,
+            .author = author,
+            .text = text,
+            .line_number = @intCast(i),
+        };
+
+        try tag_list1.tag_items.append(alloc, tag_item);
+        try tag_list2.tag_items.append(alloc, tag_item);
     }
 
-    var selected_item: u32 = 0;
+    var tag_list_view = TagListView{};
+    // defer tag_list_view.deinit(alloc);
+    try tag_list_view.tag_lists.append(alloc, tag_list1);
+    try tag_list_view.tag_lists.append(alloc, tag_list2);
+
+    // var selected_item: u32 = 0;
 
     const left_status_bar_text = "left status bar";
-    var right_status_bar_text: []const u8 = "right status bar";
+    const right_status_bar_text: []const u8 = "right status bar";
 
     try tty_buffered_writer.flush();
     while (true) {
@@ -84,14 +150,46 @@ pub fn main() !void {
                 if (key.matches('q', .{})) {
                     break;
                 } else if (key.matches('m', .{})) {
-                    for (list.items.len..list.items.len + 10) |i| {
-                        const str = try std.fmt.allocPrint(alloc, "item {d}", .{i});
-                        try list.append(str);
-                    }
+                    // for (list.items.len..list.items.len + 10) |i| {
+                    //     const str = try std.fmt.allocPrint(alloc, "item {d}", .{i});
+                    //     try list.append(str);
+                    // }
                 } else if (key.matches('j', .{})) {
-                    selected_item +|= 1;
+                    // @FIXME: maybe pull up a scope
+                    const current_tag_list =
+                        &tag_list_view.tag_lists.items[tag_list_view.list_index];
+                    const not_at_end_of_tag_lists =
+                        tag_list_view.list_index != tag_list_view.tag_lists.items.len - 1;
+
+                    // inside of tag_list
+                    if (tag_list_view.list_item_index) |current_item_index| {
+                        // not at end of tag_list
+                        if (current_item_index != current_tag_list.tag_items.items.len - 1) {
+                            tag_list_view.list_item_index = current_item_index + 1;
+                        }
+                        // not at end of tag_lists
+                        else if (not_at_end_of_tag_lists) {
+                            tag_list_view.list_item_index = null;
+                            tag_list_view.list_index += 1;
+                        }
+                    }
+                    // not in a tag_list but on one that is expanded
+                    else if (current_tag_list.expanded) {
+                        tag_list_view.list_item_index = 0;
+                    }
+                    // not at the end
+                    else if (not_at_end_of_tag_lists) {
+                        tag_list_view.list_index += 1;
+                    }
                 } else if (key.matches('k', .{})) {
-                    selected_item -|= 1;
+                    // selected_item -|= 1;
+                } else if (key.matches('\t', .{})) {
+                    // @FIXME: maybe pull up a scope
+                    const current_tag_list =
+                        &tag_list_view.tag_lists.items[tag_list_view.list_index];
+
+                    tag_list_view.list_item_index = null;
+                    current_tag_list.expanded = !current_tag_list.expanded;
                 }
             },
 
@@ -157,23 +255,95 @@ pub fn main() !void {
 
         // left pane items
         var y: i17 = 0;
-        for (list.items, 0..) |item, i| {
-            const selected = i == selected_item;
+        for (tag_list_view.tag_lists.items, 0..) |tag_list, tag_list_i| {
+            const is_current_tag_list =
+                tag_list_i == tag_list_view.list_index;
+            const tag_list_selected =
+                is_current_tag_list and tag_list_view.list_item_index == null;
 
-            const bg = if (selected) bg_selected else bg_left_pane;
+            const tag_list_bg = if (tag_list_selected)
+                bg_selected
+            else
+                bg_left_pane;
 
-            const row = left_pane.child(.{
+            const tag_list_row = left_pane.child(.{
                 .x_off = 0,
                 .y_off = y,
                 .height = 1,
-                .width = 50,
+                .width = left_pane_width,
             });
-            row.fill(.{ .style = .{ .bg = bg } });
-            const item_res = row.printSegment(.{ .text = item, .style = .{ .bg = bg } }, .{});
-            if (item_res.overflow) {
-                right_status_bar_text = "warn: left pane item overflowed";
-            }
+
+            _ = tag_list_row.print(
+                &.{
+                    .{
+                        .text = if (tag_list.expanded) "v " else "> ",
+                        .style = .{ .bg = tag_list_bg },
+                    },
+                    .{
+                        .text = tag_list.file_path,
+                        .style = .{ .bg = tag_list_bg },
+                    },
+                },
+                .{},
+            );
             y += 1;
+
+            if (tag_list.expanded) {
+                for (tag_list.tag_items.items, 0..) |item, tag_item_i| {
+                    const tag_item_selected =
+                        if (tag_list_view.list_item_index) |index|
+                        is_current_tag_list and index == tag_item_i
+                    else
+                        false;
+
+                    const tag_item_bg = if (tag_item_selected)
+                        bg_selected
+                    else
+                        bg_left_pane;
+
+                    const tag_item_row = left_pane.child(.{
+                        .x_off = 0,
+                        .y_off = y,
+                        .height = 1,
+                        .width = left_pane_width,
+                    });
+
+                    _ = tag_item_row.print(
+                        &.{
+                            .{
+                                .text = "   ",
+                                .style = .{ .bg = tag_item_bg },
+                            },
+                            .{
+                                .text = item.tag,
+                                .style = .{ .bg = tag_item_bg },
+                            },
+                        },
+                        .{},
+                    );
+                    y += 1;
+                }
+            }
+
+            // const selected = i == selected_item;
+
+            // const bg = if (selected) bg_selected else bg_left_pane;
+
+            // const row = left_pane.child(.{
+            //     .x_off = 0,
+            //     .y_off = y,
+            //     .height = 1,
+            //     .width = 50,
+            // });
+            // row.fill(.{ .style = .{ .bg = bg } });
+            // const item_res = row.printSegment(
+            //     .{ .text = item, .style = .{ .bg = bg } },
+            //     .{},
+            // );
+            // if (item_res.overflow) {
+            //     right_status_bar_text = "warn: left pane item overflowed";
+            // }
+            // y += 1;
         }
 
         // =-= left pane end
@@ -185,26 +355,36 @@ pub fn main() !void {
 
 const TagListView = struct {
     list_index: u32 = 0,
-    list_item_index: u32 = 0,
+    list_item_index: ?u32 = null,
+    tag_lists: ArrayListUnmanaged(TagList) = .{},
 
-    // TagList
+    // pub fn deinit(self: *TagListView, alloc: Allocator) void {
+    //     for (self.tag_list.items) |*list| list.deinit(alloc);
+    //     self.tag_list.deinit(alloc);
+    // }
 };
 
 const TagList = struct {
-    file_path_buf: [256]u8,
-    file_path_len: u8,
+    file_path: []u8,
+    tag_items: ArrayListUnmanaged(TagItem),
+    expanded: bool, // might be worth storing out of line, in TagListView
 
-    // []TagItem
-    // expanded
-
-    pub fn file_path(self: *const TagList) []const u8 {
-        return self.file_path_buf[0..self.file_path_len];
-    }
+    // pub fn deinit(self: *TagList, alloc: Allocator) void {
+    //     alloc.free(self.file_path);
+    //     for (self.tag_items.items) |*item| item.deinit(alloc);
+    //     self.tag_items.deinit(alloc);
+    // }
 };
 
 const TagItem = struct {
-    // tag
-    // ?author
-    // line number
-    // text
+    tag: []u8,
+    author: ?[]u8,
+    text: []u8,
+    line_number: u32,
+
+    // pub fn deinit(self: *TagItem, alloc: Allocator) void {
+    //     alloc.free(self.tag);
+    //     if (self.author) |author| alloc.free(author);
+    //     alloc.free(self.text);
+    // }
 };
