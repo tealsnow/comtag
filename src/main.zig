@@ -10,6 +10,7 @@ const border = vaxis.widgets.border;
 const ScrollView = vaxis.widgets.ScrollView;
 const Color = vaxis.Color;
 const Segment = vaxis.Segment;
+const Key = vaxis.Key;
 
 // pub const PanicGlobals = struct {
 //     vx: *vaxis.Vaxis,
@@ -38,7 +39,7 @@ const Segment = vaxis.Segment;
 // Internal events can be posted into the same queue as vaxis events to allow
 // for a single event loop with exhaustive switching. Booya
 const Event = union(enum) {
-    key_press: vaxis.Key,
+    key_press: Key,
     winsize: vaxis.Winsize,
     focus_in,
     foo: u8,
@@ -84,8 +85,6 @@ pub fn main() !void {
     // const arena_allocator = std.heap.ArenaAllocator.init(alloc);
     // defer arena_allocator.deinit();
     // const arena = arena_allocator.allocator();
-
-    //
 
     var tag_list1 = TagList{
         .file_path = try std.fmt.allocPrint(alloc, "{s}", .{"src/main.zig"}),
@@ -147,49 +146,14 @@ pub fn main() !void {
         const event = loop.nextEvent();
         switch (event) {
             .key_press => |key| {
-                if (key.matches('q', .{})) {
+                if (key.matchesAny(&.{ 'q', Key.escape }, .{})) {
                     break;
-                } else if (key.matches('m', .{})) {
-                    // for (list.items.len..list.items.len + 10) |i| {
-                    //     const str = try std.fmt.allocPrint(alloc, "item {d}", .{i});
-                    //     try list.append(str);
-                    // }
-                } else if (key.matches('j', .{})) {
-                    // @FIXME: maybe pull up a scope
-                    const current_tag_list =
-                        &tag_list_view.tag_lists.items[tag_list_view.list_index];
-                    const not_at_end_of_tag_lists =
-                        tag_list_view.list_index != tag_list_view.tag_lists.items.len - 1;
-
-                    // inside of tag_list
-                    if (tag_list_view.list_item_index) |current_item_index| {
-                        // not at end of tag_list
-                        if (current_item_index != current_tag_list.tag_items.items.len - 1) {
-                            tag_list_view.list_item_index = current_item_index + 1;
-                        }
-                        // not at end of tag_lists
-                        else if (not_at_end_of_tag_lists) {
-                            tag_list_view.list_item_index = null;
-                            tag_list_view.list_index += 1;
-                        }
-                    }
-                    // not in a tag_list but on one that is expanded
-                    else if (current_tag_list.expanded) {
-                        tag_list_view.list_item_index = 0;
-                    }
-                    // not at the end
-                    else if (not_at_end_of_tag_lists) {
-                        tag_list_view.list_index += 1;
-                    }
-                } else if (key.matches('k', .{})) {
-                    // selected_item -|= 1;
-                } else if (key.matches('\t', .{})) {
-                    // @FIXME: maybe pull up a scope
-                    const current_tag_list =
-                        &tag_list_view.tag_lists.items[tag_list_view.list_index];
-
-                    tag_list_view.list_item_index = null;
-                    current_tag_list.expanded = !current_tag_list.expanded;
+                } else if (key.matchesAny(&.{ 'j', Key.down }, .{})) {
+                    tag_list_view.move_down();
+                } else if (key.matchesAny(&.{ 'k', Key.up }, .{})) {
+                    tag_list_view.move_up();
+                } else if (key.matches(Key.tab, .{})) {
+                    tag_list_view.toggle_expanded();
                 }
             },
 
@@ -362,12 +326,81 @@ const TagListView = struct {
     //     for (self.tag_list.items) |*list| list.deinit(alloc);
     //     self.tag_list.deinit(alloc);
     // }
+
+    pub fn move_down(self: *TagListView) void {
+        const current_tag_list =
+            &self.tag_lists.items[self.list_index];
+        const not_at_end_of_tag_lists =
+            self.list_index != self.tag_lists.items.len - 1;
+
+        // inside of list
+        if (self.list_item_index) |current_item_index| {
+            // not at end of list
+            if (current_item_index != current_tag_list.tag_items.items.len - 1) {
+                self.list_item_index = current_item_index + 1;
+            }
+            // not at end of lists
+            else if (not_at_end_of_tag_lists) {
+                self.list_item_index = null;
+                self.list_index += 1;
+            }
+        }
+        // not in a list but on one that is expanded
+        else if (current_tag_list.expanded) {
+            self.list_item_index = 0;
+        }
+        // not at the end of lists
+        else if (not_at_end_of_tag_lists) {
+            self.list_index += 1;
+        }
+    }
+
+    pub fn move_up(self: *TagListView) void {
+        // inside of tag_list
+        if (self.list_item_index) |current_item_index| {
+            if (current_item_index == 0) {
+                self.list_item_index = null;
+
+                const current_tag_list =
+                    &self.tag_lists.items[self.list_index];
+                current_tag_list.remembered_item_index = null;
+            } else {
+                self.list_item_index = current_item_index - 1;
+            }
+        }
+        // not at begining of tag_lists
+        else if (self.list_index != 0) {
+            const prev_list = &self.tag_lists.items[self.list_index - 1];
+            if (prev_list.expanded) {
+                self.list_index -= 1;
+                self.list_item_index = @intCast(prev_list.tag_items.items.len - 1);
+            } else {
+                self.list_index -= 1;
+            }
+        }
+    }
+
+    pub fn toggle_expanded(self: *TagListView) void {
+        // @FIXME: maybe pull up a scope
+        const current_tag_list =
+            &self.tag_lists.items[self.list_index];
+
+        if (current_tag_list.expanded) {
+            current_tag_list.remembered_item_index = self.list_item_index;
+            current_tag_list.expanded = false;
+            self.list_item_index = null;
+        } else {
+            self.list_item_index = current_tag_list.remembered_item_index;
+            current_tag_list.expanded = true;
+        }
+    }
 };
 
 const TagList = struct {
     file_path: []u8,
     tag_items: ArrayListUnmanaged(TagItem),
     expanded: bool, // might be worth storing out of line, in TagListView
+    remembered_item_index: ?u32 = null,
 
     // pub fn deinit(self: *TagList, alloc: Allocator) void {
     //     alloc.free(self.file_path);
