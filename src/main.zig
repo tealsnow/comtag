@@ -83,10 +83,6 @@ pub fn main() !void {
     try vx.enterAltScreen(tty_writer);
     try vx.queryTerminal(tty_writer, 1 * std.time.ns_per_s);
 
-    // const arena_allocator = std.heap.ArenaAllocator.init(alloc);
-    // defer arena_allocator.deinit();
-    // const arena = arena_allocator.allocator();
-
     var tag_list1 = TagList{
         .file_path = try std.fmt.allocPrint(alloc, "{s}", .{"src/main.zig"}),
         .tag_items = .{},
@@ -139,10 +135,37 @@ pub fn main() !void {
 
     // var selected_item: u32 = 0;
 
-    const status_bar_view = StatusBarView{
+    var status_bar_view = StatusBarView{
         .left_text = "left status bar",
         .right_text = "right status bar",
     };
+
+    var colors = Colors{
+        .bg_default = .{ .rgb = [_]u8{ 0x28, 0x28, 0x28 } }, // gruvbox bg0
+        .bg_status_bar = .{ .rgb = [_]u8{ 0x66, 0x5c, 0x54 } }, // gruvbox bg3
+        .bg_tag_list = .{ .rgb = [_]u8{ 0x3c, 0x38, 0x36 } }, // gruvbox bg1
+        .bg_selected = .{ .rgb = [_]u8{ 0x7c, 0x67, 0x64 } }, // gruvbox bg4
+
+        .red = .{ .rgb = [_]u8{ 0xfb, 0x49, 0x34 } }, // gruvbox
+        .green = .{ .rgb = [_]u8{ 0xb8, 0xbb, 0x26 } }, // gruvbox
+        .yellow = .{ .rgb = [_]u8{ 0xfa, 0xbd, 0x2f } }, // gruvbox
+        .blue = .{ .rgb = [_]u8{ 0x83, 0xa5, 0x98 } }, // gruvbox
+        .purple = .{ .rgb = [_]u8{ 0xd3, 0x86, 0x9b } }, // gruvbox
+        .aqua = .{ .rgb = [_]u8{ 0x8e, 0xc0, 0x7c } }, // gruvbox
+    };
+    defer colors.tag_map.deinit(alloc);
+
+    try colors.tag_map.ensureTotalCapacity(alloc, 9);
+    try colors.tag_map.put(alloc, "TODO", .green);
+    try colors.tag_map.put(alloc, "FIXME", .yellow);
+    try colors.tag_map.put(alloc, "NOTE", .blue);
+    try colors.tag_map.put(alloc, "XXX", .red);
+    try colors.tag_map.put(alloc, "HACK", .purple);
+    try colors.tag_map.put(alloc, "SPEED", .aqua);
+
+    var arena_allocator = std.heap.ArenaAllocator.init(alloc);
+    defer arena_allocator.deinit();
+    const arena = arena_allocator.allocator();
 
     try tty_buffered_writer.flush();
     while (true) {
@@ -165,8 +188,6 @@ pub fn main() !void {
             else => {},
         }
 
-        const colors = Colors{};
-
         const win = vx.window();
         win.clear();
         win.fill(.{ .style = .{ .bg = colors.bg_default } });
@@ -186,18 +207,53 @@ pub fn main() !void {
             .height = win.height - status_bar.height,
             .width = 50,
         });
-        tag_list_view.draw(tag_list, colors);
+        try tag_list_view.draw(tag_list, colors, arena);
 
         try vx.render(tty_writer);
         try tty_buffered_writer.flush();
+
+        // @FIXME: Limit this accordingly
+        _ = arena_allocator.reset(.retain_capacity);
     }
 }
 
 const Colors = struct {
-    bg_default: Color = .{ .rgb = [_]u8{ 0x28, 0x28, 0x28 } }, // gruvbox bg0
-    bg_status_bar: Color = .{ .rgb = [_]u8{ 0x66, 0x5c, 0x54 } }, // gruvbox bg3
-    bg_tag_list: Color = .{ .rgb = [_]u8{ 0x3c, 0x38, 0x36 } }, // gruvbox bg1
-    bg_selected: Color = .{ .rgb = [_]u8{ 0x7c, 0x67, 0x64 } }, // gruvbox bg4
+    bg_default: Color,
+    bg_status_bar: Color,
+    bg_tag_list: Color,
+    bg_selected: Color,
+
+    red: Color,
+    green: Color,
+    yellow: Color,
+    blue: Color,
+    purple: Color,
+    aqua: Color,
+
+    tag_map: std.ArrayHashMapUnmanaged([]const u8, TagColor, std.array_hash_map.StringContext, false) = .{},
+
+    pub const TagColor = enum {
+        red,
+        green,
+        yellow,
+        blue,
+        purple,
+        aqua,
+    };
+
+    pub fn getTagColor(self: *const Colors, tag: []const u8) ?Color {
+        return if (self.tag_map.get(tag)) |tag_color|
+            switch (tag_color) {
+                .red => self.red,
+                .green => self.green,
+                .yellow => self.yellow,
+                .blue => self.blue,
+                .purple => self.purple,
+                .aqua => self.aqua,
+            }
+        else
+            null;
+    }
 };
 
 const TagListView = struct {
@@ -280,7 +336,7 @@ const TagListView = struct {
         }
     }
 
-    pub fn draw(self: *TagListView, window: Window, colors: Colors) void {
+    pub fn draw(self: *TagListView, window: Window, colors: Colors, arena: Allocator) !void {
         window.fill(.{ .style = .{ .bg = colors.bg_tag_list } });
 
         var y: i17 = 0;
@@ -306,7 +362,7 @@ const TagListView = struct {
                 &.{
                     .{
                         .text = if (tag_list.expanded) "v " else "> ",
-                        .style = .{ .bg = tag_list_bg },
+                        .style = .{ .bg = colors.bg_tag_list },
                     },
                     .{
                         .text = tag_list.file_path,
@@ -317,41 +373,122 @@ const TagListView = struct {
             );
             y += 1;
 
-            if (tag_list.expanded) {
-                for (tag_list.tag_items.items, 0..) |item, tag_item_i| {
-                    const tag_item_selected =
-                        if (self.list_item_index) |index|
-                        is_current_tag_list and index == tag_item_i
-                    else
-                        false;
+            if (!tag_list.expanded)
+                continue;
 
-                    const tag_item_bg = if (tag_item_selected)
-                        colors.bg_selected
-                    else
-                        colors.bg_tag_list;
+            var max_line_len: usize = 0;
+            for (tag_list.tag_items.items) |item| {
+                if (item.line_number == 0)
+                    max_line_len = @max(max_line_len, 1)
+                else
+                    max_line_len = @max(
+                        max_line_len,
+                        std.math.log10_int(item.line_number) + 1,
+                    );
+            }
 
-                    const tag_item_row = window.child(.{
-                        .x_off = 0,
-                        .y_off = y,
-                        .height = 1,
-                        .width = window.width,
-                    });
+            for (tag_list.tag_items.items, 0..) |item, tag_item_i| {
+                const tag_item_selected =
+                    if (self.list_item_index) |index|
+                    is_current_tag_list and index == tag_item_i
+                else
+                    false;
 
-                    _ = tag_item_row.print(
+                const tag_item_bg = if (tag_item_selected)
+                    colors.bg_selected
+                else
+                    colors.bg_tag_list;
+
+                const tag_item_row = window.child(.{
+                    .x_off = 0,
+                    .y_off = y,
+                    .height = 1,
+                    .width = window.width,
+                });
+
+                const tag_color = colors.getTagColor(item.tag) orelse .default;
+
+                var line_num_buf = try arena.alloc(u8, max_line_len);
+                const line_num_buf_len = std.fmt.formatIntBuf(
+                    line_num_buf,
+                    item.line_number,
+                    10,
+                    .lower,
+                    .{ .width = max_line_len },
+                );
+                const line_num = line_num_buf[0..line_num_buf_len];
+
+                var print_res = tag_item_row.print(
+                    &.{
+                        .{
+                            .text = "   ",
+                            .style = .{ .bg = colors.bg_tag_list },
+                        },
+                        .{
+                            .text = line_num,
+                            .style = .{ .bg = tag_item_bg },
+                        },
+                        .{
+                            .text = " ",
+                            .style = .{ .bg = tag_item_bg },
+                        },
+                        .{
+                            .text = item.tag,
+                            .style = .{ .bg = tag_item_bg, .fg = tag_color },
+                        },
+                    },
+                    .{},
+                );
+
+                if (item.author) |author| {
+                    print_res = tag_item_row.print(
                         &.{
                             .{
-                                .text = "   ",
-                                .style = .{ .bg = tag_item_bg },
+                                .text = " (",
+                                .style = .{ .bg = tag_item_bg, .dim = true },
                             },
                             .{
-                                .text = item.tag,
-                                .style = .{ .bg = tag_item_bg },
+                                .text = author,
+                                .style = .{ .bg = tag_item_bg, .dim = true },
+                            },
+                            .{
+                                .text = ")",
+                                .style = .{ .bg = tag_item_bg, .dim = true },
                             },
                         },
-                        .{},
+                        .{ .col_offset = print_res.col },
                     );
-                    y += 1;
                 }
+
+                print_res = tag_item_row.print(
+                    &.{
+                        .{
+                            .text = " ",
+                            .style = .{ .bg = tag_item_bg },
+                        },
+                        .{
+                            .text = item.text,
+                            .style = .{ .bg = tag_item_bg },
+                        },
+                    },
+                    .{
+                        .col_offset = print_res.col,
+                        .wrap = .none,
+                    },
+                );
+
+                if (print_res.overflow) {
+                    _ = tag_item_row.writeCell(
+                        tag_item_row.width - 1,
+                        0,
+                        .{
+                            .char = .{ .grapheme = "…" },
+                            .style = .{ .bg = tag_item_bg },
+                        },
+                    );
+                }
+
+                y += 1;
             }
         }
     }
