@@ -19,6 +19,12 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("vaxis", vaxis.module("vaxis"));
 
+    const yazap = b.dependency("yazap", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("yazap", yazap.module("yazap"));
+
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {

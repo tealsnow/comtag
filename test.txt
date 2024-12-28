@@ -1,0 +1,12 @@
+// @FOO: asdf
+//  foo bar
+// not continue
+// @BAR: other tag
+//       other continue
+
+    // @TODO
+    // @FIXME(ketanr)
+    // @NOTE: this is note
+    //  with continue
+    // @HACK(ketanr): hakermans
+    // @XXX

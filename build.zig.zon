@@ -6,6 +6,10 @@
             .url = "https://github.com/rockorager/libvaxis/archive/9d8dd7511150ca25ae42ae898545a5c0a3d5b729.tar.gz",
             .hash = "1220f5cc7484dde34ecdb75a4c032ef6a55c4add35f6ef2ba1e149e1f22ea06482f2",
         },
+        .yazap = .{
+            .url = "git+https://github.com/prajwalch/yazap#c84a17de0103abcfd90d184d44749aa197fbd87d",
+            .hash = "12208664f483e9ce606cdbdcb52b1caea79786654d5897aa7dd5b91d3b9cf3d6ffce",
+        },
     },
     .paths = .{
         "build.zig",
