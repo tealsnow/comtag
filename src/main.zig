@@ -7,7 +7,6 @@ const vaxis = @import("vaxis");
 const Cell = vaxis.Cell;
 const TextInput = vaxis.widgets.TextInput;
 const CodeView = vaxis.widgets.CodeView;
-// const ScrollView = vaxis.widgets.ScrollView;
 const Color = vaxis.Color;
 const Segment = vaxis.Segment;
 const Key = vaxis.Key;
@@ -20,29 +19,6 @@ const Arg = yazap.Arg;
 
 const read = @import("read.zig");
 const TagList = @import("TagList.zig");
-
-// pub const PanicGlobals = struct {
-//     vx: *vaxis.Vaxis,
-//     tty: *std.io.AnyWriter,
-// };
-
-// var g_panic_globals: ?PanicGlobals = null;
-
-// pub fn panic(
-//     msg: []const u8,
-//     error_return_trace: ?*std.builtin.StackTrace,
-//     ret_addr: ?usize,
-// ) noreturn {
-//     if (g_panic_globals) |pg| {
-//         pg.vx.exitAltScreen(pg.tty.*) catch {};
-//         pg.vx.deinit(null, pg.tty.*);
-//     }
-
-//     if (std.meta.hasFn(std.builtin, "default_panic")) {
-//         std.builtin.default_panic(msg, error_return_trace, ret_addr);
-//     }
-//     std.debug.defaultPanic(msg, error_return_trace, ret_addr);
-// }
 
 // This can contain internal events as well as Vaxis events.
 // Internal events can be posted into the same queue as vaxis events to allow
@@ -108,8 +84,6 @@ pub fn main() !void {
     var vx = try vaxis.init(alloc, .{});
     // null allocator in release build to save time on exit
     defer vx.deinit(if (builtin.mode == .Debug) alloc else null, tty_writer);
-
-    // g_panic_globals = .{ .vx = &vx, .tty = &tty_writer };
 
     var loop: vaxis.Loop(Event) = .{
         .tty = &tty,
@@ -258,7 +232,10 @@ const Colors = struct {
 const TagListView = struct {
     list_index: u32 = 0,
     list_item_index: ?u31 = null,
-    tag_lists: std.MultiArrayList(struct { list: TagList, expanded: bool = true }) = .{},
+    tag_lists: std.MultiArrayList(struct {
+        list: TagList,
+        expanded: bool = true,
+    }) = .{},
 
     pub fn deinit(self: *TagListView, alloc: Allocator) void {
         for (self.tag_lists.items(.list)) |*list| list.deinit(alloc);

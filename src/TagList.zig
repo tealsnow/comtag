@@ -7,7 +7,7 @@ const Self = @This();
 file_path: []u8, // owned
 file_bytes: []u8, // owned
 tag_items: ArrayListUnmanaged(TagItem),
-tag_texts: ArrayListUnmanaged([]const u8), // owned, items are slices
+tag_texts: ArrayListUnmanaged([]const u8), // items are slices
 remembered_item_index: ?u31 = null,
 
 pub fn deinit(self: *Self, alloc: Allocator) void {
