@@ -257,10 +257,7 @@ const Colors = struct {
 
 const TagListView = struct {
     list_index: u32 = 0,
-    // @FIXME: its worth looking into makeing this a ?u31, for space saving
-    //  see TagList.remembered_item_index
-    list_item_index: ?u32 = null,
-    // tag_lists: ArrayListUnmanaged(struct { list: TagList, expanded: bool }) = .{}, // owned
+    list_item_index: ?u31 = null,
     tag_lists: std.MultiArrayList(struct { list: TagList, expanded: bool = true }) = .{},
 
     pub fn deinit(self: *TagListView, alloc: Allocator) void {
