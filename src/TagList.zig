@@ -8,8 +8,6 @@ file_path: []u8, // owned
 file_bytes: []u8, // owned
 tag_items: ArrayListUnmanaged(TagItem),
 tag_texts: ArrayListUnmanaged([]const u8), // owned, items are slices
-// @FIXME: might be worth storing out of line, in TagListView
-expanded: bool,
 // @FIXME: its worth looking into makeing this a ?u31, for space saving
 //  see `TagListView.list_item_index`
 remembered_item_index: ?u32 = null,

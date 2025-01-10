@@ -97,7 +97,7 @@ pub fn main() !void {
 
     var tag_list_view = TagListView{};
     defer tag_list_view.deinit(alloc);
-    try tag_list_view.tag_lists.append(alloc, tag_list);
+    try tag_list_view.tag_lists.append(alloc, .{ .list = tag_list });
 
     var tty = try vaxis.Tty.init();
     defer tty.deinit();
@@ -260,18 +260,19 @@ const TagListView = struct {
     // @FIXME: its worth looking into makeing this a ?u31, for space saving
     //  see TagList.remembered_item_index
     list_item_index: ?u32 = null,
-    tag_lists: ArrayListUnmanaged(TagList) = .{}, // owned
+    // tag_lists: ArrayListUnmanaged(struct { list: TagList, expanded: bool }) = .{}, // owned
+    tag_lists: std.MultiArrayList(struct { list: TagList, expanded: bool = true }) = .{},
 
     pub fn deinit(self: *TagListView, alloc: Allocator) void {
-        for (self.tag_lists.items) |*list| list.deinit(alloc);
+        for (self.tag_lists.items(.list)) |*list| list.deinit(alloc);
         self.tag_lists.deinit(alloc);
     }
 
     pub fn move_down(self: *TagListView) void {
         const current_tag_list =
-            &self.tag_lists.items[self.list_index];
+            &self.tag_lists.items(.list)[self.list_index];
         const not_at_end_of_tag_lists =
-            self.list_index != self.tag_lists.items.len - 1;
+            self.list_index != self.tag_lists.len - 1;
 
         // inside of list
         if (self.list_item_index) |current_item_index| {
@@ -286,7 +287,7 @@ const TagListView = struct {
             }
         }
         // not in a list but on one that is expanded
-        else if (current_tag_list.expanded) {
+        else if (self.tag_lists.get(self.list_index).expanded) {
             self.list_item_index = 0;
         }
         // not at the end of lists
@@ -302,7 +303,7 @@ const TagListView = struct {
                 self.list_item_index = null;
 
                 const current_tag_list =
-                    &self.tag_lists.items[self.list_index];
+                    &self.tag_lists.items(.list)[self.list_index];
                 current_tag_list.remembered_item_index = null;
             } else {
                 self.list_item_index = current_item_index - 1;
@@ -310,9 +311,9 @@ const TagListView = struct {
         }
         // not at begining of tag_lists
         else if (self.list_index != 0) {
-            const prev_list = &self.tag_lists.items[self.list_index - 1];
-            if (prev_list.expanded) {
+            if (self.tag_lists.get(self.list_index - 1).expanded) {
                 self.list_index -= 1;
+                const prev_list = &self.tag_lists.items(.list)[self.list_index - 1];
                 self.list_item_index = @intCast(prev_list.tag_items.items.len - 1);
             } else {
                 self.list_index -= 1;
@@ -321,17 +322,16 @@ const TagListView = struct {
     }
 
     pub fn toggle_expanded(self: *TagListView) void {
-        // @FIXME: maybe pull up a scope
         const current_tag_list =
-            &self.tag_lists.items[self.list_index];
+            &self.tag_lists.items(.list)[self.list_index];
 
-        if (current_tag_list.expanded) {
+        if (self.tag_lists.get(self.list_index).expanded) {
             current_tag_list.remembered_item_index = self.list_item_index;
-            current_tag_list.expanded = false;
+            self.tag_lists.items(.expanded)[self.list_index] = false;
             self.list_item_index = null;
         } else {
             self.list_item_index = current_tag_list.remembered_item_index;
-            current_tag_list.expanded = true;
+            self.tag_lists.items(.expanded)[self.list_index] = true;
         }
     }
 
@@ -339,7 +339,7 @@ const TagListView = struct {
         window.fill(.{ .style = .{ .bg = colors.bg_tag_list } });
 
         var y: i17 = 0;
-        for (self.tag_lists.items, 0..) |tag_list, tag_list_i| {
+        for (self.tag_lists.items(.list), 0..) |tag_list, tag_list_i| {
             const is_current_tag_list =
                 tag_list_i == self.list_index;
             const tag_list_selected =
@@ -357,10 +357,12 @@ const TagListView = struct {
                 .width = window.width,
             });
 
+            const expanded = self.tag_lists.get(tag_list_i).expanded;
+
             _ = tag_list_row.print(
                 &.{
                     .{
-                        .text = if (tag_list.expanded) "v " else "> ",
+                        .text = if (expanded) "v " else "> ",
                         .style = .{ .bg = colors.bg_tag_list },
                     },
                     .{
@@ -372,7 +374,7 @@ const TagListView = struct {
             );
             y += 1;
 
-            if (!tag_list.expanded)
+            if (!expanded)
                 continue;
 
             var max_line_len: usize = 0;
@@ -460,18 +462,29 @@ const TagListView = struct {
                 }
 
                 if (item.text.len > 0) {
-                    const text = tag_list.tag_texts.items[item.text.start];
-                    print_res = tag_item_row.print(
-                        &.{
-                            .{
+                    var list = std.ArrayList(Segment).init(arena);
+                    try list.ensureTotalCapacity(1 + item.text.len * 2);
+
+                    try list.append(.{
+                        .text = " ",
+                        .style = .{ .bg = tag_item_bg },
+                    });
+
+                    const texts = tag_list.tag_texts.items[item.text.start..(item.text.start + item.text.len)];
+                    for (texts, 0..) |text, i| {
+                        try list.append(.{
+                            .text = text,
+                            .style = .{ .bg = tag_item_bg },
+                        });
+                        if (i < texts.len - 1)
+                            try list.append(.{
                                 .text = " ",
                                 .style = .{ .bg = tag_item_bg },
-                            },
-                            .{
-                                .text = text,
-                                .style = .{ .bg = tag_item_bg },
-                            },
-                        },
+                            });
+                    }
+
+                    print_res = tag_item_row.print(
+                        list.items,
                         .{
                             .col_offset = print_res.col,
                             .wrap = .none,

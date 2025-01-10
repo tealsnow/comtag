@@ -22,7 +22,6 @@ pub fn read(alloc: Allocator, file_path: []u8) !TagList {
         .file_bytes = file_bytes,
         .tag_items = .{},
         .tag_texts = .{},
-        .expanded = true,
     };
 
     var line_number: u32 = 1;
