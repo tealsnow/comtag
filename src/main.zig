@@ -6,15 +6,20 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const vaxis = @import("vaxis");
 const Cell = vaxis.Cell;
 const TextInput = vaxis.widgets.TextInput;
-const border = vaxis.widgets.border;
-const ScrollView = vaxis.widgets.ScrollView;
+const CodeView = vaxis.widgets.CodeView;
+// const ScrollView = vaxis.widgets.ScrollView;
 const Color = vaxis.Color;
 const Segment = vaxis.Segment;
 const Key = vaxis.Key;
 const Window = vaxis.Window;
 
+const DisplayWidth = @import("DisplayWidth");
+
 const yazap = @import("yazap");
 const Arg = yazap.Arg;
+
+const read = @import("read.zig");
+const TagList = @import("TagList.zig");
 
 // pub const PanicGlobals = struct {
 //     vx: *vaxis.Vaxis,
@@ -53,12 +58,12 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     gpa.backing_allocator = std.heap.c_allocator;
     defer {
-        // if (builtin.mode == .Debug) {
-        //     const deinit_status = gpa.deinit();
-        //     if (deinit_status == .leak) {
-        //         std.log.err("memory leak", .{});
-        //     }
-        // }
+        if (builtin.mode == .Debug) {
+            const deinit_status = gpa.deinit();
+            if (deinit_status == .leak) {
+                std.log.err("memory leak", .{});
+            }
+        }
     }
     const alloc = gpa.allocator();
 
@@ -86,20 +91,13 @@ pub fn main() !void {
         std.debug.print("ERROR: expected argument FILE\n", .{});
         std.process.exit(1);
     }
-    const file_path = maybe_file.?;
+    const file_path = try alloc.dupe(u8, maybe_file.?);
 
-    const cwd = std.fs.cwd();
+    const tag_list = try read.read(alloc, file_path);
 
-    const file = try cwd.openFile(file_path, .{});
-
-    var reader = TagReader{
-        .reader = file.reader(),
-        .comment_start_str = "//",
-    };
-    const tags = try reader.read(alloc);
-
-    // if (true)
-    //     return;
+    var tag_list_view = TagListView{};
+    defer tag_list_view.deinit(alloc);
+    try tag_list_view.tag_lists.append(alloc, tag_list);
 
     var tty = try vaxis.Tty.init();
     defer tty.deinit();
@@ -108,7 +106,7 @@ pub fn main() !void {
     defer tty_buffered_writer.flush() catch {};
 
     var vx = try vaxis.init(alloc, .{});
-    // null allocator in release to save time on exit
+    // null allocator in release build to save time on exit
     defer vx.deinit(if (builtin.mode == .Debug) alloc else null, tty_writer);
 
     // g_panic_globals = .{ .vx = &vx, .tty = &tty_writer };
@@ -124,58 +122,6 @@ pub fn main() !void {
 
     try vx.enterAltScreen(tty_writer);
     try vx.queryTerminal(tty_writer, 1 * std.time.ns_per_s);
-
-    const tag_list1 = TagList{
-        .file_path = try std.fmt.allocPrint(alloc, "{s}", .{"src/main.zig"}),
-        .tag_items = tags,
-        .expanded = true,
-    };
-
-    // var tag_list2 = TagList{
-    //     .file_path = try std.fmt.allocPrint(alloc, "{s}", .{"src/root.zig"}),
-    //     .tag_items = .{},
-    //     .expanded = false,
-    // };
-
-    // for (0..20) |i| {
-    //     const tag = if (i % 2 == 0)
-    //         "TODO"
-    //     else if (i % 3 == 0)
-    //         "FIXME"
-    //     else
-    //         "NOTE";
-    //     // const tag_alloc = try std.fmt.allocPrint(alloc, "{s}", .{tag});
-    //     const tag_alloc = try alloc.alloc(u8, tag.len);
-    //     @memcpy(tag_alloc, tag);
-
-    //     const author = if (i % 4 == 0)
-    //         try std.fmt.allocPrint(alloc, "{s}", .{"ketanr"})
-    //     else
-    //         null;
-
-    //     const text = try std.fmt.allocPrint(
-    //         alloc,
-    //         "{s}",
-    //         .{"this is a description of the tag"},
-    //     );
-
-    //     const tag_item = TagItem{
-    //         .tag = tag_alloc,
-    //         .author = author,
-    //         .text = text,
-    //         .line_number = @intCast(i),
-    //     };
-
-    //     try tag_list1.tag_items.append(alloc, tag_item);
-    //     try tag_list2.tag_items.append(alloc, tag_item);
-    // }
-
-    var tag_list_view = TagListView{};
-    // defer tag_list_view.deinit(alloc);
-    try tag_list_view.tag_lists.append(alloc, tag_list1);
-    // try tag_list_view.tag_lists.append(alloc, tag_list2);
-
-    // var selected_item: u32 = 0;
 
     var status_bar_view = StatusBarView{
         .left_text = "left status bar",
@@ -232,7 +178,7 @@ pub fn main() !void {
 
         const win = vx.window();
         win.clear();
-        win.fill(.{ .style = .{ .bg = colors.bg_default } });
+        // win.fill(.{ .style = .{ .bg = colors.bg_default } });
 
         const status_bar_height = 1;
         const status_bar = win.child(.{
@@ -243,13 +189,22 @@ pub fn main() !void {
         });
         status_bar_view.draw(status_bar, colors);
 
-        const tag_list = win.child(.{
+        const tag_list_width = 50;
+        const tag_list_win = win.child(.{
             .x_off = 0,
             .y_off = 0,
-            .height = win.height - status_bar.height,
-            .width = 50,
+            .height = win.height - status_bar_height,
+            .width = tag_list_width,
         });
-        try tag_list_view.draw(tag_list, colors, arena);
+        try tag_list_view.draw(tag_list_win, colors, arena);
+
+        const src_win = win.child(.{
+            .x_off = tag_list_width,
+            .y_off = 0,
+            .height = win.height - status_bar_height,
+            .width = win.width - tag_list_win.width,
+        });
+        src_win.fill(.{ .style = .{ .bg = colors.bg_default } });
 
         try vx.render(tty_writer);
         try tty_buffered_writer.flush();
@@ -305,12 +260,12 @@ const TagListView = struct {
     // @FIXME: its worth looking into makeing this a ?u31, for space saving
     //  see TagList.remembered_item_index
     list_item_index: ?u32 = null,
-    tag_lists: ArrayListUnmanaged(TagList) = .{},
+    tag_lists: ArrayListUnmanaged(TagList) = .{}, // owned
 
-    // pub fn deinit(self: *TagListView, alloc: Allocator) void {
-    //     for (self.tag_list.items) |*list| list.deinit(alloc);
-    //     self.tag_list.deinit(alloc);
-    // }
+    pub fn deinit(self: *TagListView, alloc: Allocator) void {
+        for (self.tag_lists.items) |*list| list.deinit(alloc);
+        self.tag_lists.deinit(alloc);
+    }
 
     pub fn move_down(self: *TagListView) void {
         const current_tag_list =
@@ -504,7 +459,8 @@ const TagListView = struct {
                     );
                 }
 
-                if (item.text) |text| {
+                if (item.text.len > 0) {
+                    const text = tag_list.tag_texts.items[item.text.start];
                     print_res = tag_item_row.print(
                         &.{
                             .{
@@ -541,35 +497,6 @@ const TagListView = struct {
     }
 };
 
-const TagList = struct {
-    file_path: []u8,
-    tag_items: ArrayListUnmanaged(TagItem),
-    // @FIXME: might be worth storing out of line, in TagListView
-    expanded: bool,
-    // @FIXME: its worth looking into makeing this a ?u31, for space saving
-    //  see TagListView.list_item_index
-    remembered_item_index: ?u32 = null,
-
-    // pub fn deinit(self: *TagList, alloc: Allocator) void {
-    //     alloc.free(self.file_path);
-    //     for (self.tag_items.items) |*item| item.deinit(alloc);
-    //     self.tag_items.deinit(alloc);
-    // }
-};
-
-const TagItem = struct {
-    tag: []u8,
-    author: ?[]u8,
-    text: ?[]u8,
-    line_number: u32,
-
-    // pub fn deinit(self: *TagItem, alloc: Allocator) void {
-    //     alloc.free(self.tag);
-    //     if (self.author) |author| alloc.free(author);
-    //     alloc.free(self.text);
-    // }
-};
-
 const StatusBarView = struct {
     // @TODO: Add support for both allocated and unallocated strings here
     left_text: []const u8,
@@ -598,166 +525,5 @@ const StatusBarView = struct {
             },
             .{},
         );
-    }
-};
-
-const TagReader = struct {
-    reader: std.fs.File.Reader,
-    comment_start_str: []const u8,
-
-    line_number: u32 = 1,
-    continue_tag_info: ?ContinueTagInfo = null,
-
-    const ContinueTagInfo = struct {
-        space_to_comment: u8,
-        space_to_tag: u8,
-
-        tag: TagItem,
-    };
-
-    pub fn read(self: *TagReader, alloc: Allocator) !std.ArrayListUnmanaged(TagItem) {
-        var tag_list = std.ArrayListUnmanaged(TagItem){};
-
-        // @NOTE:
-        //  you may notice that sometimes `iterator.i += 1` is used and
-        //  other times `_ = iterator.nextCodepoint()` is used
-        //  the difference is whether we know the size of the next codepoint
-        //  in the cases that we have just peeked an single sized character we
-        //  use `iterator.i += 1` this avoids the extra cost of `nextCodepoint`
-        //  in such cases
-        while (true) : (self.line_number += 1) {
-            const maybe_line = try self.reader.readUntilDelimiterOrEofAlloc(alloc, '\n', 2048);
-
-            if (maybe_line == null) break;
-            const line = maybe_line.?;
-            defer alloc.free(line);
-
-            const view = try std.unicode.Utf8View.init(line);
-            var iterator = view.iterator();
-
-            const space_to_comment = skip_whitespace(&iterator);
-
-            const trimed_line = line[iterator.i..];
-
-            if (std.mem.startsWith(u8, trimed_line, self.comment_start_str)) {
-                iterator.i += self.comment_start_str.len;
-
-                const space_to_start = skip_whitespace(&iterator);
-                const comment = line[iterator.i..];
-
-                if (self.continue_tag_info) |*continue_info| {
-                    // we have a continuation
-                    if (continue_info.space_to_comment == space_to_comment and
-                        space_to_start > continue_info.space_to_tag)
-                    {
-                        // std.debug.print("  {s}\n", .{comment});
-
-                        if (continue_info.tag.text) |text| {
-                            const new = try alloc.realloc(text, text.len + comment.len + 1);
-
-                            new[text.len] = ' ';
-                            @memcpy(new[(text.len + 1)..], comment);
-                            continue_info.tag.text = new;
-                        } else {
-                            const text = try alloc.alloc(u8, comment.len);
-                            @memcpy(text, comment);
-                            continue_info.tag.text = text;
-                        }
-
-                        continue;
-                    } else {
-                        try tag_list.append(alloc, continue_info.tag);
-                        self.continue_tag_info = null;
-                    }
-                }
-
-                if (comment[0] == '@') {
-                    iterator.i += 1;
-
-                    const tag_start = iterator.i;
-                    while (true) {
-                        const peek = iterator.peek(1);
-                        if (std.mem.eql(u8, peek, ":") or
-                            std.mem.eql(u8, peek, "(") or
-                            iterator.i == line.len)
-                            break
-                        else
-                            _ = iterator.nextCodepoint();
-                    }
-                    const tag = line[tag_start..iterator.i];
-
-                    const author: ?[]const u8 = if (std.mem.eql(u8, iterator.peek(1), "(")) blk: {
-                        iterator.i += 1;
-
-                        const author_start = iterator.i;
-                        while (!std.mem.eql(u8, iterator.peek(1), ")"))
-                            _ = iterator.nextCodepoint();
-                        iterator.i += 1;
-                        break :blk line[author_start..(iterator.i - 1)];
-                    } else null;
-
-                    const text: ?[]const u8 = if (std.mem.eql(u8, iterator.peek(1), ":")) blk: {
-                        iterator.i += 1;
-                        _ = skip_whitespace(&iterator);
-                        const text_start = iterator.i;
-                        while (iterator.i != line.len)
-                            // we skip like this here since the sizes of the
-                            // characters from here on out do not matter
-                            iterator.i += 1;
-                        break :blk line[text_start..iterator.i];
-                    } else null;
-
-                    const tag_alloc = try alloc.alloc(u8, tag.len);
-                    @memcpy(tag_alloc, tag);
-                    const author_alloc = if (author) |str| blk: {
-                        const mem = try alloc.alloc(u8, str.len);
-                        @memcpy(mem, str);
-                        break :blk mem;
-                    } else null;
-                    const text_alloc = if (text) |str| blk: {
-                        const mem = try alloc.alloc(u8, str.len);
-                        @memcpy(mem, str);
-                        break :blk mem;
-                    } else null;
-
-                    self.continue_tag_info = .{
-                        .space_to_comment = space_to_comment,
-                        .space_to_tag = space_to_start,
-                        .tag = .{
-                            .tag = tag_alloc,
-                            .author = author_alloc,
-                            .text = text_alloc,
-                            .line_number = self.line_number,
-                        },
-                    };
-
-                    // std.debug.print("{d}: {s}\n", .{ self.line_number, tag });
-                    // if (author) |s|
-                    //     std.debug.print("  {s}\n", .{s});
-                    // if (text) |s|
-                    //     std.debug.print("  {s}\n", .{s});
-                }
-            }
-        }
-
-        if (self.continue_tag_info) |info| {
-            try tag_list.append(alloc, info.tag);
-            self.continue_tag_info = null;
-        }
-        self.line_number = 1;
-
-        return tag_list;
-    }
-
-    fn skip_whitespace(iterator: *std.unicode.Utf8Iterator) u8 {
-        var count: u8 = 0;
-        while (true) : (count += 1) {
-            const peek = iterator.peek(1);
-            if (std.mem.eql(u8, peek, " ") or std.mem.eql(u8, peek, "\t"))
-                iterator.i += 1
-            else
-                break;
-        }
-        return count;
     }
 };
