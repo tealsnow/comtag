@@ -56,6 +56,7 @@ pub fn main() !void {
     var comtag = app.rootCommand();
 
     try comtag.addArg(Arg.positional("DIR", null, null));
+    try comtag.addArg(Arg.singleValueOption("file", null, "single file to scan instead of folder"));
     try comtag.addArg(Arg.booleanOption("version", 'v', "print version and exit"));
 
     const matches = try app.parseProcess();
@@ -65,14 +66,19 @@ pub fn main() !void {
         return;
     }
 
-    const maybe_dir = matches.getSingleValue("DIR");
-    if (maybe_dir == null) {
-        std.debug.print("ERROR: expected argument DIR\n", .{});
-        std.process.exit(1);
-    }
-    const dir_path = maybe_dir.?;
+    var tag_list_view = if (matches.getSingleValue("file")) |file_path| blk: {
+        const path = try alloc.dupe(u8, file_path);
+        break :blk try read.read_single_file(alloc, path);
+    } else blk: {
+        const maybe_dir = matches.getSingleValue("DIR");
+        if (maybe_dir == null) {
+            std.debug.print("ERROR: expected argument DIR\n", .{});
+            std.process.exit(1);
+        }
+        const dir_path = maybe_dir.?;
 
-    var tag_list_view = try read.read_dir(alloc, dir_path);
+        break :blk try read.read_dir(alloc, dir_path);
+    };
     defer tag_list_view.deinit(alloc);
 
     var tty = try vaxis.Tty.init();

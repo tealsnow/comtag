@@ -13,6 +13,20 @@ const dir_options = fs.Dir.OpenDirOptions{
     .no_follow = false,
 };
 
+pub fn read_single_file(alloc: Allocator, file_path: []u8) !TagListView {
+    var tag_list_view = TagListView{};
+    errdefer tag_list_view.deinit(alloc);
+
+    const cwd = fs.cwd();
+    const file = try cwd.openFile(file_path, .{});
+    const tag_list = try read_file(alloc, file_path, file);
+    if (tag_list) |list| {
+        try tag_list_view.tag_lists.append(alloc, .{ .list = list });
+    }
+
+    return tag_list_view;
+}
+
 pub fn read_dir(alloc: Allocator, dir_path: []const u8) !TagListView {
     const cwd = fs.cwd();
     var dir = try cwd.openDir(dir_path, dir_options);
@@ -57,18 +71,16 @@ fn iter_dir(
                 );
                 errdefer alloc.free(path);
 
-                var tag_list = read_file(alloc, path, file) catch |err| {
+                const tag_list = read_file(alloc, path, file) catch |err| {
                     if (err == error.invalid_utf8) {
                         alloc.free(path);
                         continue;
                     }
                     return err;
                 };
-
-                if (tag_list.tag_items.items.len != 0)
-                    try tag_list_view.tag_lists.append(alloc, .{ .list = tag_list })
-                else
-                    tag_list.deinit(alloc);
+                if (tag_list) |list| {
+                    try tag_list_view.tag_lists.append(alloc, .{ .list = list });
+                }
             },
             else => {},
         }
@@ -76,7 +88,7 @@ fn iter_dir(
 }
 
 /// Closes the `file` passed
-fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !TagList {
+fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
     // @TODO: extract from file extension
     const comment_str = "//";
 
@@ -200,5 +212,10 @@ fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !TagList {
         try tag_list.tag_items.append(alloc, tag_item);
     }
 
-    return tag_list;
+    if (tag_list.tag_items.items.len == 0) {
+        tag_list.deinit(alloc);
+        return null;
+    } else {
+        return tag_list;
+    }
 }
