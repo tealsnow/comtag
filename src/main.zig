@@ -228,8 +228,6 @@ pub fn main() !void {
 
             const section_end_idx = line_idx + current_tag.num_lines;
 
-            std.debug.print("end idx : {d}\n", .{section_end_idx});
-
             for (lines[line_idx..section_end_idx]) |line| {
                 _ = src_win.printSegment(.{
                     .text = line,
