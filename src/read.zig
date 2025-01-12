@@ -1,32 +1,105 @@
 const std = @import("std");
 const mem = std.mem;
+const fs = std.fs;
 const Allocator = mem.Allocator;
 
 const TagList = @import("TagList.zig");
+const TagListView = @import("TagListView.zig");
 const TagItem = TagList.TagItem;
 
-pub fn read(alloc: Allocator, file_path: []u8) !TagList {
-    const comment_str = "//"; // @TODO: config
+const dir_options = fs.Dir.OpenDirOptions{
+    .access_sub_paths = true,
+    .iterate = true,
+    .no_follow = false,
+};
 
-    const cwd = std.fs.cwd(); // @TODO: persist
+pub fn read_dir(alloc: Allocator, dir_path: []const u8) !TagListView {
+    const cwd = fs.cwd();
+    var dir = try cwd.openDir(dir_path, dir_options);
+    defer dir.close();
+
+    var tag_list_view = TagListView{};
+    errdefer tag_list_view.deinit(alloc);
+
+    try iter_dir(alloc, dir, dir_path, &tag_list_view);
+
+    return tag_list_view;
+}
+
+fn iter_dir(
+    alloc: Allocator,
+    dir: fs.Dir,
+    dir_path: []const u8,
+    tag_list_view: *TagListView,
+) !void {
+    var it = dir.iterate();
+    while (try it.next()) |entry| {
+        switch (entry.kind) {
+            .directory => {
+                var sub_dir = try dir.openDir(entry.name, dir_options);
+                defer sub_dir.close();
+
+                const full_dir_path = try fs.path.join(
+                    alloc,
+                    &.{ dir_path, entry.name },
+                );
+                defer alloc.free(full_dir_path);
+
+                try iter_dir(alloc, sub_dir, full_dir_path, tag_list_view);
+            },
+            .file => {
+                const file = try dir.openFile(entry.name, .{});
+                errdefer file.close();
+
+                const path = try fs.path.join(
+                    alloc,
+                    &.{ dir_path, entry.name },
+                );
+                errdefer alloc.free(path);
+
+                var tag_list = read_file(alloc, path, file) catch |err| {
+                    if (err == error.invalid_utf8) {
+                        alloc.free(path);
+                        continue;
+                    }
+                    return err;
+                };
+
+                if (tag_list.tag_items.items.len != 0)
+                    try tag_list_view.tag_lists.append(alloc, .{ .list = tag_list })
+                else
+                    tag_list.deinit(alloc);
+            },
+            else => {},
+        }
+    }
+}
+
+/// Closes the `file` passed
+fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !TagList {
+    // @TODO: extract from file extension
+    const comment_str = "//";
 
     const file_bytes = bytes: {
-        const file = try cwd.openFile(file_path, .{});
         defer file.close();
         const file_size = try file.getEndPos();
         break :bytes try file.readToEndAlloc(alloc, file_size);
     };
+    errdefer alloc.free(file_bytes);
+    if (!std.unicode.utf8ValidateSlice(file_bytes))
+        return error.invalid_utf8;
 
     var tag_list = TagList{
         .file_path = file_path,
         .file_bytes = file_bytes,
-        .tag_items = .{},
-        .tag_texts = .{},
     };
+    errdefer tag_list.deinit(alloc);
 
     var line_number: u32 = 1;
     var lines = mem.splitScalar(u8, file_bytes, '\n');
     while (lines.next()) |line_raw| : (line_number += 1) {
+        try tag_list.file_lines.append(alloc, line_raw);
+
         // find all comments
         const line = mem.trim(u8, line_raw, " \t");
         if (!mem.startsWith(u8, line, comment_str))

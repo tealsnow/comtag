@@ -33,6 +33,8 @@ const Event = union(enum) {
 };
 
 pub fn main() !void {
+    defer std.process.cleanExit();
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     gpa.backing_allocator = std.heap.c_allocator;
     defer {
@@ -53,29 +55,25 @@ pub fn main() !void {
 
     var comtag = app.rootCommand();
 
-    try comtag.addArg(Arg.positional("FILE", null, null));
+    try comtag.addArg(Arg.positional("DIR", null, null));
     try comtag.addArg(Arg.booleanOption("version", 'v', "print version and exit"));
 
     const matches = try app.parseProcess();
 
     if (matches.containsArg("version")) {
         std.debug.print("0.1.0\n", .{});
-        std.process.cleanExit();
         return;
     }
 
-    const maybe_file = matches.getSingleValue("FILE");
-    if (maybe_file == null) {
-        std.debug.print("ERROR: expected argument FILE\n", .{});
+    const maybe_dir = matches.getSingleValue("DIR");
+    if (maybe_dir == null) {
+        std.debug.print("ERROR: expected argument DIR\n", .{});
         std.process.exit(1);
     }
-    const file_path = try alloc.dupe(u8, maybe_file.?);
+    const dir_path = maybe_dir.?;
 
-    const tag_list = try read.read(alloc, file_path);
-
-    var tag_list_view = TagListView{};
+    var tag_list_view = try read.read_dir(alloc, dir_path);
     defer tag_list_view.deinit(alloc);
-    try tag_list_view.tag_lists.append(alloc, .{ .list = tag_list });
 
     var tty = try vaxis.Tty.init();
     defer tty.deinit();
@@ -188,8 +186,6 @@ pub fn main() !void {
         // @FIXME: Limit this accordingly
         _ = arena_allocator.reset(.retain_capacity);
     }
-
-    std.process.cleanExit();
 }
 
 const StatusBarView = struct {

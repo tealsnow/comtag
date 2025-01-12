@@ -6,6 +6,7 @@ const Colors = @import("Colors.zig");
 
 const vaxis = @import("vaxis");
 const Window = vaxis.Window;
+const Segment = vaxis.Segment;
 
 const TagListView = @This();
 
@@ -64,12 +65,10 @@ pub fn move_up(self: *TagListView) void {
     }
     // not at begining of tag_lists
     else if (self.list_index != 0) {
-        if (self.tag_lists.get(self.list_index - 1).expanded) {
-            self.list_index -= 1;
-            const prev_list = &self.tag_lists.items(.list)[self.list_index - 1];
+        self.list_index -= 1;
+        if (self.tag_lists.get(self.list_index).expanded) {
+            const prev_list = &self.tag_lists.items(.list)[self.list_index];
             self.list_item_index = @intCast(prev_list.tag_items.items.len - 1);
-        } else {
-            self.list_index -= 1;
         }
     }
 }
@@ -226,7 +225,7 @@ pub fn draw(self: *TagListView, window: Window, colors: Colors, arena: Allocator
                 const texts = tag_list.tag_texts.items[item.text.start..(item.text.start + item.text.len)];
                 for (texts, 0..) |text, i| {
                     try list.append(.{
-                        .text = text.text,
+                        .text = text,
                         .style = .{ .bg = tag_item_bg },
                     });
                     if (i < texts.len - 1)
