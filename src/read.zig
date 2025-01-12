@@ -170,11 +170,12 @@ fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
         var tag_item = TagItem{
             .tag = tag_name,
             .author = author,
-            .line_number = line_number,
             .text = .{
                 .start = text_start,
                 .len = if (text == null) 0 else 1,
             },
+            .line_number = line_number,
+            .num_lines = 1,
         };
 
         // if the following lines is also a comment that starts in the same
@@ -202,11 +203,13 @@ fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
 
             _ = lines.next();
             line_number += 1;
+            try tag_list.file_lines.append(alloc, next_line_raw);
 
             const cont = next_comment[text_begin_i..];
 
             try tag_list.tag_texts.append(alloc, cont);
             tag_item.text.len += 1;
+            tag_item.num_lines += 1;
         }
 
         try tag_list.tag_items.append(alloc, tag_item);

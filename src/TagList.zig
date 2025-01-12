@@ -27,6 +27,8 @@ pub const TagItem = struct {
     author: ?[]const u8, // slice into file
     text: Range, // range into `TagList.tag_items`
     line_number: u32,
+    // @FIXME: maybe make smaller depending on alignment
+    num_lines: u32,
 };
 
 pub const Range = struct {

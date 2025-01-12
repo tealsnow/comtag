@@ -17,10 +17,22 @@ const Segment = vaxis.Segment;
 const Key = vaxis.Key;
 const Window = vaxis.Window;
 
-// const DisplayWidth = @import("DisplayWidth");
-
 const yazap = @import("yazap");
 const Arg = yazap.Arg;
+
+pub fn panic(
+    msg: []const u8,
+    error_return_trace: ?*std.builtin.StackTrace,
+    ret_addr: ?usize,
+) noreturn {
+    // @BUG: The vaxis panic handler does not restore the cursor on a panic
+    // @TODO: File a report https://github.com/rockorager/libvaxis/issues
+    const show_cursor: []const u8 = vaxis.ctlseqs.show_cursor;
+    const stdout = std.io.getStdOut();
+    stdout.writeAll(show_cursor) catch {};
+
+    vaxis.panic_handler(msg, error_return_trace, ret_addr);
+}
 
 // This can contain internal events as well as Vaxis events.
 // Internal events can be posted into the same queue as vaxis events to allow
@@ -130,6 +142,7 @@ pub fn main() !void {
     try colors.tag_map.put(alloc, "XXX", .red);
     try colors.tag_map.put(alloc, "HACK", .purple);
     try colors.tag_map.put(alloc, "SPEED", .aqua);
+    try colors.tag_map.put(alloc, "BUG", .purple);
 
     var arena_allocator = std.heap.ArenaAllocator.init(alloc);
     defer arena_allocator.deinit();
@@ -148,6 +161,8 @@ pub fn main() !void {
                     tag_list_view.move_up();
                 } else if (key.matches(Key.tab, .{})) {
                     tag_list_view.toggle_expanded();
+                } else if (key.matches('p', .{})) {
+                    @panic("test panic");
                 }
             },
 
@@ -186,6 +201,76 @@ pub fn main() !void {
         });
         src_win.fill(.{ .style = .{ .bg = colors.bg_default } });
 
+        // @TODO: Move out of main
+        const current_list: TagList = tag_list_view.tag_lists.items(.list)[tag_list_view.list_index];
+        if (tag_list_view.list_item_index) |tag_index| {
+            const current_tag = current_list.tag_items.items[tag_index];
+            const line_idx = current_tag.line_number - 1;
+            const lines = current_list.file_lines.items;
+
+            const padding = (src_win.height - current_tag.num_lines) / 2;
+
+            var i: u16 = 0;
+
+            const begin_lines = line_idx - (line_idx -| padding);
+            const diff = padding - begin_lines;
+            i += @intCast(diff);
+
+            for (lines[(line_idx - begin_lines)..line_idx]) |line| {
+                _ = src_win.printSegment(.{
+                    .text = line,
+                    .style = .{ .bg = colors.bg_default },
+                }, .{
+                    .row_offset = i,
+                });
+                i += 1;
+            }
+
+            const section_end_idx = line_idx + current_tag.num_lines;
+
+            std.debug.print("end idx : {d}\n", .{section_end_idx});
+
+            for (lines[line_idx..section_end_idx]) |line| {
+                _ = src_win.printSegment(.{
+                    .text = line,
+                    .style = .{ .bg = colors.bg_selected },
+                }, .{
+                    .row_offset = i,
+                });
+                i += 1;
+            }
+
+            if (line_idx + padding >= lines.len) {
+                for (lines[section_end_idx..]) |line| {
+                    _ = src_win.printSegment(.{
+                        .text = line,
+                        .style = .{ .bg = colors.bg_default },
+                    }, .{
+                        .row_offset = i,
+                    });
+                    i += 1;
+                }
+            } else {
+                // @FIXME: on files smaller than the window height not having
+                //  the `- 1` indexs by 1 out of bounds, where on files larger
+                //  the final line in the view is not drawn
+                for (lines[section_end_idx..(section_end_idx + padding - 1)]) |line| {
+                    _ = src_win.printSegment(.{
+                        .text = line,
+                        .style = .{ .bg = colors.bg_default },
+                    }, .{
+                        .row_offset = i,
+                    });
+                    i += 1;
+                }
+            }
+        } else {
+            _ = src_win.printSegment(.{
+                .text = current_list.file_bytes,
+                .style = .{ .bg = colors.bg_default },
+            }, .{});
+        }
+
         try vx.render(tty_writer);
         try tty_buffered_writer.flush();
 
@@ -194,6 +279,7 @@ pub fn main() !void {
     }
 }
 
+// @FIXME: Do we still want this?
 const StatusBarView = struct {
     // @TODO: Add support for both allocated and unallocated strings here
     left_text: []const u8,
