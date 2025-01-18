@@ -11,3 +11,5 @@
 - [ ] opening current tag/line in editor
 
 - [ ] adjust width of sidebar at runtime
+
+- [ ] reloading while open
