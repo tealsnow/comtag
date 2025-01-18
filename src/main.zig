@@ -168,8 +168,8 @@ pub fn main() !void {
                     //  i.e. selected index / item (harder) and expanded lists
                     tag_list_view.deinit(alloc);
                     tag_list_view = try load(alloc, load_opts);
-                } else if (key.matches('p', .{})) {
-                    @panic("test panic");
+                } else if (key.matches(Key.enter, .{})) {
+                    try openInEditor(alloc, tag_list_view);
                 }
             },
 
@@ -253,7 +253,7 @@ const LoadOptions = union(enum) {
     dir: []const u8,
 };
 
-pub fn load(alloc: Allocator, opts: LoadOptions) !TagListView {
+fn load(alloc: Allocator, opts: LoadOptions) !TagListView {
     return switch (opts) {
         .file => |file_path| blk: {
             const path = try alloc.dupe(u8, file_path);
@@ -261,4 +261,36 @@ pub fn load(alloc: Allocator, opts: LoadOptions) !TagListView {
         },
         .dir => |dir_path| try read.read_dir(alloc, dir_path),
     };
+}
+
+// @TODO: allow for command to be configured
+fn openInEditor(alloc: Allocator, tag_list_view: TagListView) !void {
+    const current_list: TagList = tag_list_view.tag_lists.items(.list)[tag_list_view.list_index];
+    if (tag_list_view.list_item_index) |tag_index| {
+        const current_tag = current_list.tag_items[tag_index];
+
+        var args = std.ArrayList([]const u8).init(alloc);
+        defer args.deinit();
+        try args.ensureTotalCapacity(8);
+        try args.appendSlice(&.{ "emacsclient", "-n", "-r" });
+
+        const position = try std.fmt.allocPrint(
+            alloc,
+            "+{d}",
+            .{current_tag.line_number},
+        );
+        defer alloc.free(position);
+        try args.append(position);
+
+        const path = try std.fs.realpathAlloc(alloc, current_list.file_path);
+        defer alloc.free(path);
+        try args.append(path);
+
+        var proc = std.process.Child.init(args.items, alloc);
+        proc.stdin_behavior = .Pipe;
+        proc.stdout_behavior = .Pipe;
+
+        try proc.spawn();
+        _ = try proc.wait();
+    }
 }
