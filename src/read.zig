@@ -101,16 +101,23 @@ fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
     if (!std.unicode.utf8ValidateSlice(file_bytes))
         return error.invalid_utf8;
 
-    var tag_list = TagList{
-        .file_path = file_path,
-        .file_bytes = file_bytes,
-    };
-    errdefer tag_list.deinit(alloc);
+    // var tag_list = TagList{
+    //     .file_path = file_path,
+    //     .file_bytes = file_bytes,
+    // };
+    // errdefer tag_list.deinit(alloc);
+
+    var file_lines = std.ArrayListUnmanaged([]const u8){};
+    errdefer file_lines.deinit(alloc);
+    var tag_items = std.ArrayListUnmanaged(TagItem){};
+    errdefer tag_items.deinit(alloc);
+    var tag_texts = std.ArrayListUnmanaged([]const u8){};
+    errdefer tag_texts.deinit(alloc);
 
     var line_number: u32 = 1;
     var lines = mem.splitScalar(u8, file_bytes, '\n');
     while (lines.next()) |line_raw| : (line_number += 1) {
-        try tag_list.file_lines.append(alloc, line_raw);
+        try file_lines.append(alloc, line_raw);
 
         // find all comments
         const line = mem.trim(u8, line_raw, " \t");
@@ -163,9 +170,9 @@ fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
         else
             null;
 
-        const text_start: u32 = @intCast(tag_list.tag_texts.items.len);
+        const text_start: u32 = @intCast(tag_texts.items.len);
         if (text) |s|
-            try tag_list.tag_texts.append(alloc, s);
+            try tag_texts.append(alloc, s);
 
         var tag_item = TagItem{
             .tag = tag_name,
@@ -203,22 +210,33 @@ fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
 
             _ = lines.next();
             line_number += 1;
-            try tag_list.file_lines.append(alloc, next_line_raw);
+            try file_lines.append(alloc, next_line_raw);
 
             const cont = next_comment[text_begin_i..];
 
-            try tag_list.tag_texts.append(alloc, cont);
+            try tag_texts.append(alloc, cont);
             tag_item.text.len += 1;
             tag_item.num_lines += 1;
         }
 
-        try tag_list.tag_items.append(alloc, tag_item);
+        try tag_items.append(alloc, tag_item);
     }
 
-    if (tag_list.tag_items.items.len == 0) {
-        tag_list.deinit(alloc);
+    if (tag_items.items.len == 0) {
+        alloc.free(file_path);
+        alloc.free(file_bytes);
+        file_lines.deinit(alloc);
+        tag_items.deinit(alloc);
+        tag_texts.deinit(alloc);
+
         return null;
     } else {
-        return tag_list;
+        return TagList{
+            .file_path = file_path,
+            .file_bytes = file_bytes,
+            .file_lines = try file_lines.toOwnedSlice(alloc),
+            .tag_items = try tag_items.toOwnedSlice(alloc),
+            .tag_texts = try tag_texts.toOwnedSlice(alloc),
+        };
     }
 }

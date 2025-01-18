@@ -204,9 +204,9 @@ pub fn main() !void {
         // @TODO: Move out of main
         const current_list: TagList = tag_list_view.tag_lists.items(.list)[tag_list_view.list_index];
         if (tag_list_view.list_item_index) |tag_index| {
-            const current_tag = current_list.tag_items.items[tag_index];
+            const current_tag = current_list.tag_items[tag_index];
             const line_idx = current_tag.line_number - 1;
-            const lines = current_list.file_lines.items;
+            const lines = current_list.file_lines;
 
             const padding = (src_win.height - current_tag.num_lines) / 2;
 

@@ -31,7 +31,7 @@ pub fn move_down(self: *TagListView) void {
     // inside of list
     if (self.list_item_index) |current_item_index| {
         // not at end of list
-        if (current_item_index != current_tag_list.tag_items.items.len - 1) {
+        if (current_item_index != current_tag_list.tag_items.len - 1) {
             self.list_item_index = current_item_index + 1;
         }
         // not at end of lists
@@ -68,7 +68,7 @@ pub fn move_up(self: *TagListView) void {
         self.list_index -= 1;
         if (self.tag_lists.get(self.list_index).expanded) {
             const prev_list = &self.tag_lists.items(.list)[self.list_index];
-            self.list_item_index = @intCast(prev_list.tag_items.items.len - 1);
+            self.list_item_index = @intCast(prev_list.tag_items.len - 1);
         }
     }
 }
@@ -130,7 +130,7 @@ pub fn draw(self: *TagListView, window: Window, colors: Colors, arena: Allocator
             continue;
 
         var max_line_len: usize = 0;
-        for (tag_list.tag_items.items) |item| {
+        for (tag_list.tag_items) |item| {
             if (item.line_number == 0)
                 max_line_len = @max(max_line_len, 1)
             else
@@ -140,7 +140,7 @@ pub fn draw(self: *TagListView, window: Window, colors: Colors, arena: Allocator
                 );
         }
 
-        for (tag_list.tag_items.items, 0..) |item, tag_item_i| {
+        for (tag_list.tag_items, 0..) |item, tag_item_i| {
             const tag_item_selected =
                 if (self.list_item_index) |index|
                 is_current_tag_list and index == tag_item_i
@@ -222,7 +222,7 @@ pub fn draw(self: *TagListView, window: Window, colors: Colors, arena: Allocator
                     .style = .{ .bg = tag_item_bg },
                 });
 
-                const texts = tag_list.tag_texts.items[item.text.start..(item.text.start + item.text.len)];
+                const texts = tag_list.tag_texts[item.text.start..(item.text.start + item.text.len)];
                 for (texts, 0..) |text, i| {
                     try list.append(.{
                         .text = text,
