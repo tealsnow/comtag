@@ -79,10 +79,9 @@ pub fn main() !void {
         return;
     }
 
-    var tag_list_view = if (matches.getSingleValue("file")) |file_path| blk: {
-        const path = try alloc.dupe(u8, file_path);
-        break :blk try read.read_single_file(alloc, path);
-    } else blk: {
+    const load_opts = if (matches.getSingleValue("file")) |file_path|
+        LoadOptions{ .file = file_path }
+    else blk: {
         const maybe_dir = matches.getSingleValue("DIR");
         if (maybe_dir == null) {
             std.debug.print("ERROR: expected argument DIR\n", .{});
@@ -90,8 +89,10 @@ pub fn main() !void {
         }
         const dir_path = maybe_dir.?;
 
-        break :blk try read.read_dir(alloc, dir_path);
+        break :blk LoadOptions{ .dir = dir_path };
     };
+
+    var tag_list_view = try load(alloc, load_opts);
     defer tag_list_view.deinit(alloc);
 
     var tty = try vaxis.Tty.init();
@@ -162,6 +163,11 @@ pub fn main() !void {
                     tag_list_view.move_up();
                 } else if (key.matches(Key.tab, .{})) {
                     tag_list_view.toggle_expanded();
+                } else if (key.matches('r', .{})) {
+                    // @TODO: restore state on reload
+                    //  i.e. selected index / item (harder) and expanded lists
+                    tag_list_view.deinit(alloc);
+                    tag_list_view = try load(alloc, load_opts);
                 } else if (key.matches('p', .{})) {
                     @panic("test panic");
                 }
@@ -241,3 +247,18 @@ const StatusBarView = struct {
         );
     }
 };
+
+const LoadOptions = union(enum) {
+    file: []const u8,
+    dir: []const u8,
+};
+
+pub fn load(alloc: Allocator, opts: LoadOptions) !TagListView {
+    return switch (opts) {
+        .file => |file_path| blk: {
+            const path = try alloc.dupe(u8, file_path);
+            break :blk try read.read_single_file(alloc, path);
+        },
+        .dir => |dir_path| try read.read_dir(alloc, dir_path),
+    };
+}

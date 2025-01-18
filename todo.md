@@ -1,10 +1,10 @@
 # TODO
 
 - [ ] config file
-    - [ ] theme
-    - [ ] custom tag colors
-    - [ ] adjust width of sidebar
-    - [ ] file type comments
+  - [ ] theme
+  - [ ] custom tag colors
+  - [ ] adjust width of sidebar
+  - [ ] file type comments
 
 - [ ] allow for tags where they are not the start of the line
 
@@ -12,4 +12,8 @@
 
 - [ ] adjust width of sidebar at runtime
 
-- [ ] reloading while open
+- [ ] nested tags
+  to allow for something like the 'config file' todo in this file
+
+
+- [x] reloading while open

@@ -20,6 +20,7 @@ tag_lists: std.MultiArrayList(struct {
 pub fn deinit(self: *TagListView, alloc: Allocator) void {
     for (self.tag_lists.items(.list)) |*list| list.deinit(alloc);
     self.tag_lists.deinit(alloc);
+    self.* = undefined;
 }
 
 pub fn move_down(self: *TagListView) void {

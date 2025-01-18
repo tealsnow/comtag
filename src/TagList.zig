@@ -17,6 +17,7 @@ pub fn deinit(self: *Self, alloc: Allocator) void {
     alloc.free(self.file_lines);
     alloc.free(self.tag_items);
     alloc.free(self.tag_texts);
+    self.* = undefined;
 }
 
 pub const TagItem = struct {
