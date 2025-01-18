@@ -17,7 +17,12 @@ blue: Color,
 purple: Color,
 aqua: Color,
 
-tag_map: std.ArrayHashMapUnmanaged([]const u8, TagColor, std.array_hash_map.StringContext, false) = .{},
+tag_map: std.ArrayHashMapUnmanaged(
+    []const u8,
+    TagColor,
+    std.array_hash_map.StringContext,
+    false,
+) = .{},
 
 pub const TagColor = enum {
     red,

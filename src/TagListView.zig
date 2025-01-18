@@ -87,7 +87,7 @@ pub fn toggle_expanded(self: *TagListView) void {
     }
 }
 
-pub fn draw(self: *TagListView, window: Window, colors: Colors, arena: Allocator) !void {
+pub fn draw(self: *TagListView, window: Window, colors: *Colors, arena: Allocator) !void {
     window.fill(.{ .style = .{ .bg = colors.bg_tag_list } });
 
     var y: i17 = 0;
