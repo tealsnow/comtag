@@ -164,10 +164,22 @@ pub fn main() !void {
                 } else if (key.matches(Key.tab, .{})) {
                     tag_list_view.toggle_expanded();
                 } else if (key.matches('r', .{})) {
-                    // @TODO: restore state on reload
-                    //  i.e. selected index / item (harder) and expanded lists
+                    // @TODO: restore expanded state
+                    //  this would involve keeping a list of each filename and
+                    //  its exanded state, comparing them to the new and setting
+                    //  accordingly
+                    const list_index = tag_list_view.list_index;
+                    const list_item_index = tag_list_view.list_item_index;
+
                     tag_list_view.deinit(alloc);
                     tag_list_view = try load(alloc, load_opts);
+
+                    tag_list_view.list_index = @min(list_index, tag_list_view.tag_lists.len - 1);
+
+                    if (tag_list_view.list_index == list_index and list_item_index != null) {
+                        const tag_list: TagList = tag_list_view.tag_lists.items(.list)[list_index];
+                        tag_list_view.list_item_index = @min(list_item_index.?, tag_list.tag_items.len - 1);
+                    }
                 } else if (key.matches(Key.enter, .{})) {
                     try openInEditor(alloc, tag_list_view);
                 }
