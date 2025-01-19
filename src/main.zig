@@ -287,8 +287,8 @@ fn openInEditor(alloc: Allocator, tag_list_view: TagListView) !void {
         try args.append(path);
 
         var proc = std.process.Child.init(args.items, alloc);
-        proc.stdin_behavior = .Pipe;
-        proc.stdout_behavior = .Pipe;
+        proc.stdin_behavior = .Ignore;
+        proc.stdout_behavior = .Ignore;
 
         try proc.spawn();
         _ = try proc.wait();
