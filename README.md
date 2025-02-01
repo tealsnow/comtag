@@ -11,6 +11,13 @@
 This is a little cli program to find a list all **com**ment-**tag**s within a set of files and present them in an easily readable manor.
 Simular to the todo tool within jetbrains editors. A list of files and their 'todo's. This is a little more general.
 
+## Usage
+
+```
+@TODO: add usage examples
+       (this one is not a joke)
+```
+
 ## Syntax
 
 The general syntax is as such:
@@ -51,5 +58,5 @@ The general syntax is as such:
 
 ```
 @TODO: include some screenshots
-       (this one is not a joke)
+       (this one is also not a joke)
 ```
