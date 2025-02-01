@@ -117,6 +117,7 @@ pub fn main() !void {
     try vx.enterAltScreen(tty_writer);
     try vx.queryTerminal(tty_writer, 1 * std.time.ns_per_s);
 
+    // @TODO: put controls hints here
     var status_bar_view = StatusBarView{
         .left_text = "left status bar",
         .right_text = "right status bar",
