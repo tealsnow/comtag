@@ -9,8 +9,7 @@
 ## About
 
 This is a little cli program to find a list all **com**ment-**tag**s within a set of files and present them in an easily readable manor.
-Simular to the todo tool within jetbrains editors. A list of files and their 'todo's
-This is a little more general.
+Simular to the todo tool within jetbrains editors. A list of files and their 'todo's. This is a little more general.
 
 ## Syntax
 
@@ -24,7 +23,7 @@ The general syntax is as such:
 > When done the abiliy to associate comment strings to file types will be available in a config file.
 
 > [!IMPORTANT]
-> Support for "mulitline" comments is not implmented and probably wont be.
+> Support for "mulitline" comments is not implmented and probably won't be.
 > So syntax like `/* @TAG */` and `<!-- @TAG -->` will not work
 
 ### Examples
