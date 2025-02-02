@@ -23,7 +23,7 @@ pub fn deinit(self: *TagListView, alloc: Allocator) void {
     self.* = undefined;
 }
 
-pub fn move_down(self: *TagListView) void {
+pub fn moveDown(self: *TagListView) void {
     const current_tag_list =
         &self.tag_lists.items(.list)[self.list_index];
     const not_at_end_of_tag_lists =
@@ -51,7 +51,7 @@ pub fn move_down(self: *TagListView) void {
     }
 }
 
-pub fn move_up(self: *TagListView) void {
+pub fn moveUp(self: *TagListView) void {
     // inside of tag_list
     if (self.list_item_index) |current_item_index| {
         if (current_item_index == 0) {
@@ -74,7 +74,7 @@ pub fn move_up(self: *TagListView) void {
     }
 }
 
-pub fn toggle_expanded(self: *TagListView) void {
+pub fn toggleExpanded(self: *TagListView) void {
     const current_tag_list =
         &self.tag_lists.items(.list)[self.list_index];
 

@@ -159,11 +159,11 @@ pub fn main() !void {
                 if (key.matchesAny(&.{ 'q', Key.escape }, .{})) {
                     break;
                 } else if (key.matchesAny(&.{ 'j', Key.down }, .{})) {
-                    tag_list_view.move_down();
+                    tag_list_view.moveDown();
                 } else if (key.matchesAny(&.{ 'k', Key.up }, .{})) {
-                    tag_list_view.move_up();
+                    tag_list_view.moveUp();
                 } else if (key.matches(Key.tab, .{})) {
-                    tag_list_view.toggle_expanded();
+                    tag_list_view.toggleExpanded();
                 } else if (key.matches('r', .{})) {
                     // @TODO: restore expanded state
                     //  this would involve keeping a list of each filename and

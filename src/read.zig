@@ -13,13 +13,13 @@ const dir_options = fs.Dir.OpenDirOptions{
     .no_follow = false,
 };
 
-pub fn read_single_file(alloc: Allocator, file_path: []u8) !TagListView {
+pub fn readSingleFile(alloc: Allocator, file_path: []u8) !TagListView {
     var tag_list_view = TagListView{};
     errdefer tag_list_view.deinit(alloc);
 
     const cwd = fs.cwd();
     const file = try cwd.openFile(file_path, .{});
-    const tag_list = try read_file(alloc, file_path, file);
+    const tag_list = try readFile(alloc, file_path, file);
     if (tag_list) |list| {
         try tag_list_view.tag_lists.append(alloc, .{ .list = list });
     }
@@ -27,7 +27,7 @@ pub fn read_single_file(alloc: Allocator, file_path: []u8) !TagListView {
     return tag_list_view;
 }
 
-pub fn read_dir(alloc: Allocator, dir_path: []const u8) !TagListView {
+pub fn readDir(alloc: Allocator, dir_path: []const u8) !TagListView {
     const cwd = fs.cwd();
     var dir = try cwd.openDir(dir_path, dir_options);
     defer dir.close();
@@ -35,12 +35,12 @@ pub fn read_dir(alloc: Allocator, dir_path: []const u8) !TagListView {
     var tag_list_view = TagListView{};
     errdefer tag_list_view.deinit(alloc);
 
-    try iter_dir(alloc, dir, dir_path, &tag_list_view);
+    try iterDir(alloc, dir, dir_path, &tag_list_view);
 
     return tag_list_view;
 }
 
-fn iter_dir(
+fn iterDir(
     alloc: Allocator,
     dir: fs.Dir,
     dir_path: []const u8,
@@ -59,7 +59,7 @@ fn iter_dir(
                 );
                 defer alloc.free(full_dir_path);
 
-                try iter_dir(alloc, sub_dir, full_dir_path, tag_list_view);
+                try iterDir(alloc, sub_dir, full_dir_path, tag_list_view);
             },
             .file => {
                 const file = try dir.openFile(entry.name, .{});
@@ -71,7 +71,7 @@ fn iter_dir(
                 );
                 errdefer alloc.free(path);
 
-                const tag_list = read_file(alloc, path, file) catch |err| {
+                const tag_list = readFile(alloc, path, file) catch |err| {
                     if (err == error.invalid_utf8) {
                         alloc.free(path);
                         continue;
@@ -88,7 +88,7 @@ fn iter_dir(
 }
 
 /// Closes the `file` passed
-fn read_file(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
+fn readFile(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
     // @TODO: extract from file extension
     const comment_str = "//";
 
