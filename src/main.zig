@@ -41,8 +41,6 @@ pub fn panic(
 const Event = union(enum) {
     key_press: Key,
     winsize: vaxis.Winsize,
-    focus_in,
-    foo: u8,
 };
 
 pub fn main() !void {
@@ -124,17 +122,17 @@ pub fn main() !void {
     };
 
     var colors = Colors{
-        .bg_default = .{ .rgb = [_]u8{ 0x28, 0x28, 0x28 } }, // gruvbox bg0
-        .bg_status_bar = .{ .rgb = [_]u8{ 0x66, 0x5c, 0x54 } }, // gruvbox bg3
-        .bg_tag_list = .{ .rgb = [_]u8{ 0x3c, 0x38, 0x36 } }, // gruvbox bg1
-        .bg_selected = .{ .rgb = [_]u8{ 0x7c, 0x67, 0x64 } }, // gruvbox bg4
+        .bg_default = .{ .index = 235 },
+        .bg_tag_list = .{ .index = 236 },
+        .bg_status_bar = .{ .index = 237 },
+        .bg_selected = .{ .index = 238 },
 
-        .red = .{ .rgb = [_]u8{ 0xfb, 0x49, 0x34 } }, // gruvbox
-        .green = .{ .rgb = [_]u8{ 0xb8, 0xbb, 0x26 } }, // gruvbox
-        .yellow = .{ .rgb = [_]u8{ 0xfa, 0xbd, 0x2f } }, // gruvbox
-        .blue = .{ .rgb = [_]u8{ 0x83, 0xa5, 0x98 } }, // gruvbox
-        .purple = .{ .rgb = [_]u8{ 0xd3, 0x86, 0x9b } }, // gruvbox
-        .aqua = .{ .rgb = [_]u8{ 0x8e, 0xc0, 0x7c } }, // gruvbox
+        .red = .{ .index = 1 + 8 },
+        .green = .{ .index = 2 + 8 },
+        .yellow = .{ .index = 3 + 8 },
+        .blue = .{ .index = 4 + 8 },
+        .purple = .{ .index = 5 + 8 },
+        .aqua = .{ .index = 6 + 8 },
     };
     defer colors.tag_map.deinit(alloc);
 
@@ -187,8 +185,6 @@ pub fn main() !void {
             },
 
             .winsize => |ws| try vx.resize(alloc, tty.anyWriter(), ws),
-
-            else => {},
         }
 
         const win = vx.window();
@@ -270,9 +266,9 @@ fn load(alloc: Allocator, opts: LoadOptions) !TagListView {
     return switch (opts) {
         .file => |file_path| blk: {
             const path = try alloc.dupe(u8, file_path);
-            break :blk try read.read_single_file(alloc, path);
+            break :blk try read.readSingleFile(alloc, path);
         },
-        .dir => |dir_path| try read.read_dir(alloc, dir_path),
+        .dir => |dir_path| try read.readDir(alloc, dir_path),
     };
 }
 
