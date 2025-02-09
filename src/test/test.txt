@@ -5,12 +5,26 @@
 //       other continue
 
     // @TODO
-    // @FIXME(ketanr)
+
+    //     @FIXME(ketanr)
+
     // @NOTE: this is note
     //  with continue
-    // @HACK(ketanr): hakermans
+
+    //   @HACK(ketanr): hakermans
     // @XXX
 
 // @AUTHOR(ketanr)
 
 //  part of author? (not)
+
+some code // @TAG: not at start
+
+asdf // @FIXME: also not at start
+     //  but continued
+
+foo bar // @FOO: bar foo
+        // not continued
+
+baz // @baz: ...
+     // not continued

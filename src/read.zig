@@ -87,9 +87,28 @@ fn iterDir(
     }
 }
 
+const WHITESPACE = " \t";
+
+fn isOneOf(char: u8, any: []const u8) bool {
+    for (any) |one|
+        if (char == one)
+            return true;
+    return false;
+}
+
+fn isWhitespace(char: u8) bool {
+    return isOneOf(char, WHITESPACE);
+}
+
+fn countLeadingWhitespace(str: []const u8) usize {
+    var count: usize = 0;
+    while (isWhitespace(str[count])) : (count += 1) {}
+    return count;
+}
+
 /// Closes the `file` passed
 fn readFile(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
-    // @TODO: extract from file extension
+    // @TODO: extract from file extension / config
     const comment_str = "//";
 
     const file_bytes = bytes: {
@@ -100,12 +119,6 @@ fn readFile(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
     errdefer alloc.free(file_bytes);
     if (!std.unicode.utf8ValidateSlice(file_bytes))
         return error.invalid_utf8;
-
-    // var tag_list = TagList{
-    //     .file_path = file_path,
-    //     .file_bytes = file_bytes,
-    // };
-    // errdefer tag_list.deinit(alloc);
 
     var file_lines = std.ArrayListUnmanaged([]const u8){};
     errdefer file_lines.deinit(alloc);
@@ -120,16 +133,17 @@ fn readFile(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
         try file_lines.append(alloc, line_raw);
 
         // find all comments
-        const line = mem.trim(u8, line_raw, " \t");
-        if (!mem.startsWith(u8, line, comment_str))
-            continue;
-        const comment_start_i = mem.indexOfAny(u8, line_raw, comment_str).?;
+        const comment_start_col = mem.indexOfAny(u8, line_raw, comment_str) orelse continue;
+
+        const comment_trimmed_right = mem.trimRight(u8, line_raw[(comment_start_col + comment_str.len)..], WHITESPACE);
+
+        var tag_start_col = countLeadingWhitespace(comment_trimmed_right);
+        const comment = comment_trimmed_right[tag_start_col..];
+        tag_start_col += comment_start_col + comment_str.len;
 
         // filter for all those starting with '@'
-        const comment = mem.trim(u8, line[comment_str.len..], " \t");
         if (!mem.startsWith(u8, comment, "@"))
             continue;
-        const tag_start_i = comment_start_i + mem.indexOfAny(u8, line, "@").?;
 
         const full_tag = comment[1..];
         var i: usize = 0;
@@ -185,34 +199,26 @@ fn readFile(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
             .num_lines = 1,
         };
 
-        // if the following lines is also a comment that starts in the same
-        // column and the leading whitespace is greator than that of the
+        // if the following lines are also comments that start in the same
+        // column and their leading whitespace is greator than that of the
         // tag, it is a continuation of the text
         while (lines.peek()) |next_line_raw| {
-            const next_line = mem.trim(u8, next_line_raw, " \t");
-            if (!mem.startsWith(u8, next_line, comment_str))
-                break;
-            const begin_i = mem.indexOfAny(u8, next_line_raw, comment_str).?;
+            const begin_col = mem.indexOfAny(u8, next_line_raw, comment_str) orelse break;
 
-            if (begin_i != comment_start_i)
-                break;
+            // starts at same column
+            if (begin_col != comment_start_col) break;
 
-            const next_comment = mem.trimRight(u8, next_line[comment_str.len..], " \t");
-            var text_begin_i: usize = 0;
-            while (text_begin_i < next_comment.len) : (text_begin_i += 1) {
-                const at = next_comment[text_begin_i];
-                if (at == ' ' or at == '\t')
-                    continue;
-                break;
-            }
-            if (text_begin_i + begin_i + comment_str.len <= tag_start_i)
+            const next_comment = mem.trimRight(u8, next_line_raw[(begin_col + comment_str.len)..], WHITESPACE);
+
+            const text_begin_col = countLeadingWhitespace(next_comment);
+            if (text_begin_col + begin_col + comment_str.len <= tag_start_col)
                 break;
 
             _ = lines.next();
             line_number += 1;
             try file_lines.append(alloc, next_line_raw);
 
-            const cont = next_comment[text_begin_i..];
+            const cont = next_comment[text_begin_col..];
 
             try tag_texts.append(alloc, cont);
             tag_item.text.len += 1;
