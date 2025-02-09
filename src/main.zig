@@ -60,8 +60,7 @@ pub fn main() !void {
 
     var app = yazap.App.init(alloc, "comtag", "this is comtag");
     defer {
-        if (builtin.mode == .Debug)
-            app.deinit();
+        if (builtin.mode == .Debug) app.deinit();
     }
 
     var comtag = app.rootCommand();
@@ -181,6 +180,10 @@ pub fn main() !void {
                     }
                 } else if (key.matches(Key.enter, .{})) {
                     try openInEditor(alloc, tag_list_view);
+                } else if (key.matches('<', .{})) {
+                    tag_list_view.width -= 1;
+                } else if (key.matches('>', .{})) {
+                    tag_list_view.width += 1;
                 }
             },
 
@@ -200,17 +203,16 @@ pub fn main() !void {
         });
         status_bar_view.draw(status_bar, &colors);
 
-        const tag_list_width = 50;
         const tag_list_win = win.child(.{
             .x_off = 0,
             .y_off = 0,
             .height = win.height - status_bar_height,
-            .width = tag_list_width,
+            .width = tag_list_view.width,
         });
         try tag_list_view.draw(tag_list_win, &colors, arena);
 
         const src_win = win.child(.{
-            .x_off = tag_list_width,
+            .x_off = tag_list_view.width,
             .y_off = 0,
             .height = win.height - status_bar_height,
             .width = win.width - tag_list_win.width,

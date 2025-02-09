@@ -16,6 +16,7 @@ tag_lists: std.MultiArrayList(struct {
     list: TagList,
     expanded: bool = true,
 }) = .{},
+width: u16 = 50,
 
 pub fn deinit(self: *TagListView, alloc: Allocator) void {
     for (self.tag_lists.items(.list)) |*list| list.deinit(alloc);

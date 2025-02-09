@@ -3,7 +3,7 @@
 - [ ] config file
   - [ ] custom tag colors
   - [ ] adjust width of sidebar
-    - [ ] adjust width of sidebar at runtime
+    - [x] adjust width of sidebar at runtime
   - [ ] file type comments
   - [ ] opening current tag/line in editor
 

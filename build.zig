@@ -13,16 +13,15 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
     exe.linkLibC();
 
-    const vaxis = b.dependency("vaxis", .{
+    const dep_config = .{
         .target = target,
         .optimize = optimize,
-    });
+    };
+
+    const vaxis = b.dependency("vaxis", dep_config);
     exe.root_module.addImport("vaxis", vaxis.module("vaxis"));
 
-    const yazap = b.dependency("yazap", .{
-        .target = target,
-        .optimize = optimize,
-    });
+    const yazap = b.dependency("yazap", dep_config);
     exe.root_module.addImport("yazap", yazap.module("yazap"));
 
     const run_cmd = b.addRunArtifact(exe);
