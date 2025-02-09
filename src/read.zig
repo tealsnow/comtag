@@ -213,12 +213,11 @@ fn readFile(alloc: Allocator, file_path: []u8, file: fs.File) !?TagList {
             const text_begin_col = countLeadingWhitespace(next_comment);
             if (text_begin_col + begin_col + comment_str.len <= tag_start_col)
                 break;
+            const cont = next_comment[text_begin_col..];
 
             _ = lines.next();
             line_number += 1;
             try file_lines.append(alloc, next_line_raw);
-
-            const cont = next_comment[text_begin_col..];
 
             try tag_texts.append(alloc, cont);
             tag_item.text.len += 1;

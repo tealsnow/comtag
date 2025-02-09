@@ -9,7 +9,7 @@
 ## About
 
 This is a little cli program to find a list all **com**ment-**tag**s within a set of files and present them in an easily readable manor.
-Simular to the todo tool within jetbrains editors. A list of files and their 'todo's. This is a little more general.
+Similar to the todo tool within JetBrains editors. A list of files and their 'todo's. This is a little more general.
 
 ## Usage
 
@@ -26,18 +26,18 @@ The general syntax is as such:
 ```
 
 > [!NOTE]
-> Configuration of the what to consider to be the begining of a comment has not been implement as of yet. 
-> When done the abiliy to associate comment strings to file types will be available in a config file.
+> Configuration of the what to consider to be the beginning of a comment has not been implement as of yet. 
+> When done the ability to associate comment strings to file types will be available in a config file.
 
 > [!IMPORTANT]
-> Support for "mulitline" comments is not implmented and probably won't be.
+> Support for "mulitline" comments is not implemented and probably won't be.
 > So syntax like `/* @TAG */` and `<!-- @TAG -->` will not work
 
 ### Examples
 
 ```
 // @HACK
-# @TODO: implement this thing one day
+# @TODO: Implement this thing one day
 -- @FIXME(ketanr)
 @NOTE(ketanr): This does it that way because I said so
 
@@ -46,11 +46,14 @@ The general syntax is as such:
 
  and there is nothing between (this will not be a part of the above @NOTE)
 
-@What_Ever_You_Want: as long as it is after the '@'
-                     it will be considered a part of the tag
+@What_Ever_You_Want: As long as it is after the '@',
+                     it is considered a part of the tag
 
-// @NOTE: it does not work if the actual comment does not start on the same column
+// @NOTE: It does not work if the actual comment does not start on the same column
        // such as like this
+       
+some line of code // @NOTE: they can even start after code
+                  //  such as like this
 
 ```
 
@@ -59,4 +62,6 @@ The general syntax is as such:
 ```
 @TODO: include some screenshots
        (this one is also not a joke)
+
 ```
+
