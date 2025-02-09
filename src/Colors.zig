@@ -1,14 +1,15 @@
+const Colors = @This();
+
 const std = @import("std");
 
 const vaxis = @import("vaxis");
 const Color = vaxis.Color;
 
-const Colors = @This();
-
 bg_default: Color,
-bg_status_bar: Color,
-bg_tag_list: Color,
 bg_selected: Color,
+bg_tag_list: Color,
+bg_status_bar: Color,
+bg_status_bar_hl: Color,
 
 red: Color,
 green: Color,

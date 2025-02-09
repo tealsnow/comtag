@@ -1,3 +1,5 @@
+const TagListView = @This();
+
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
@@ -7,8 +9,6 @@ const Colors = @import("Colors.zig");
 const vaxis = @import("vaxis");
 const Window = vaxis.Window;
 const Segment = vaxis.Segment;
-
-const TagListView = @This();
 
 const status_bar_view_height = @import("StatusBarView.zig").height;
 

@@ -116,15 +116,13 @@ pub fn main() !void {
     try vx.enterAltScreen(tty_writer);
     try vx.queryTerminal(tty_writer, 1 * std.time.ns_per_s);
 
-    var status_bar_view = StatusBarView{
-        .left_text = "left status bar",
-        .right_text = "right status bar",
-    };
+    var status_bar_view = StatusBarView{};
 
     var colors = Colors{
         .bg_default = .{ .index = 235 },
         .bg_tag_list = .{ .index = 236 },
         .bg_status_bar = .{ .index = 237 },
+        .bg_status_bar_hl = .{ .index = 234 },
         .bg_selected = .{ .index = 238 },
 
         .red = .{ .index = 1 + 8 },
@@ -194,7 +192,7 @@ pub fn main() !void {
         root.clear();
 
         const status_bar_win = StatusBarView.window(root);
-        status_bar_view.draw(status_bar_win, &colors);
+        try status_bar_view.draw(arena, status_bar_win, &colors);
 
         const tag_list_win = tag_list_view.window(root);
         try tag_list_view.draw(tag_list_win, &colors, arena);

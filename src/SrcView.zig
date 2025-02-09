@@ -65,10 +65,14 @@ pub fn render(win: Window, colors: *Colors, tag_list_view: *TagListView) void {
                 i += 1;
             }
         } else {
-            // @FIXME: on files smaller than the window height not having
+            // @-FIXME: on files smaller than the window height not having
             //  the `- 1` causes an off by 1 panic, where on files larger
             //  the final line in the view is not drawn
-            for (lines[section_end_idx..(section_end_idx + padding - 1)]) |line| {
+            // @FIXME: still same issue as above
+            //  but another out of bounds error when viewing a tag that exists
+            //  below the max size of the displayed view
+            //  thus the '- 2'
+            for (lines[section_end_idx..(section_end_idx + padding - 2)]) |line| {
                 _ = win.printSegment(.{
                     .text = line,
                     .style = .{ .bg = colors.bg_default },

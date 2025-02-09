@@ -19,6 +19,8 @@
 
 - [ ] syntax highlighting ?
 
+- [ ] disabled tags beginning with '-'
+
 ---
 
 - [x] reloading while open

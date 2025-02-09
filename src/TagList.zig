@@ -1,8 +1,8 @@
+const TagList = @This();
+
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
-
-const Self = @This();
 
 file_path: []u8, // owned
 file_bytes: []u8, // owned
@@ -11,7 +11,7 @@ tag_items: []const TagItem,
 tag_texts: []const []const u8, // slices into file_bytes
 remembered_item_index: ?u31 = null,
 
-pub fn deinit(self: *Self, alloc: Allocator) void {
+pub fn deinit(self: *TagList, alloc: Allocator) void {
     alloc.free(self.file_path);
     alloc.free(self.file_bytes);
     alloc.free(self.file_lines);
