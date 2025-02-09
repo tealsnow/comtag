@@ -9,6 +9,7 @@ const TagListView = @import("TagListView.zig");
 const StatusBarView = @import("StatusBarView.zig");
 const Colors = @import("Colors.zig");
 const SrcView = @import("SrcView.zig");
+const binds = @import("binds.zig");
 
 const vaxis = @import("vaxis");
 const Cell = vaxis.Cell;
@@ -149,41 +150,40 @@ pub fn main() !void {
     const arena = arena_allocator.allocator();
 
     try tty_buffered_writer.flush();
-    while (true) {
+    var running = true;
+    while (running) {
         const event = loop.nextEvent();
         switch (event) {
             .key_press => |key| {
-                if (key.matchesAny(&.{ 'q', Key.escape }, .{})) {
-                    break;
-                } else if (key.matchesAny(&.{ 'j', Key.down }, .{})) {
-                    tag_list_view.moveDown();
-                } else if (key.matchesAny(&.{ 'k', Key.up }, .{})) {
-                    tag_list_view.moveUp();
-                } else if (key.matches(Key.tab, .{})) {
-                    tag_list_view.toggleExpanded();
-                } else if (key.matches('r', .{})) {
-                    // @TODO: restore expanded state
-                    //  this would involve keeping a list of each filename and
-                    //  its exanded state, comparing them to the new and setting
-                    //  accordingly
-                    const list_index = tag_list_view.list_index;
-                    const list_item_index = tag_list_view.list_item_index;
-
-                    tag_list_view.deinit(alloc);
-                    tag_list_view = try load(alloc, load_opts);
-
-                    tag_list_view.list_index = @min(list_index, tag_list_view.tag_lists.len - 1);
-
-                    if (tag_list_view.list_index == list_index and list_item_index != null) {
-                        const tag_list: TagList = tag_list_view.tag_lists.items(.list)[list_index];
-                        tag_list_view.list_item_index = @min(list_item_index.?, tag_list.tag_items.len - 1);
+                for (binds.bindings) |binding| {
+                    if (key.matchesAny(binding.keys.cps, binding.keys.mods)) {
+                        switch (binding.action) {
+                            .quit => {
+                                running = false;
+                            },
+                            .move_down => {
+                                tag_list_view.moveDown();
+                            },
+                            .move_up => {
+                                tag_list_view.moveUp();
+                            },
+                            .toggle_expanded => {
+                                tag_list_view.toggleExpanded();
+                            },
+                            .reload => {
+                                try reload(alloc, &tag_list_view, load_opts);
+                            },
+                            .open_in_editor => {
+                                try openInEditor(alloc, tag_list_view);
+                            },
+                            .sidebar_width_dec => {
+                                tag_list_view.width -= 1;
+                            },
+                            .sidebar_width_inc => {
+                                tag_list_view.width += 1;
+                            },
+                        }
                     }
-                } else if (key.matches(Key.enter, .{})) {
-                    try openInEditor(alloc, tag_list_view);
-                } else if (key.matches('<', .{})) {
-                    tag_list_view.width -= 1;
-                } else if (key.matches('>', .{})) {
-                    tag_list_view.width += 1;
                 }
             },
 
@@ -254,5 +254,28 @@ fn openInEditor(alloc: Allocator, tag_list_view: TagListView) !void {
 
         try proc.spawn();
         _ = try proc.wait();
+    }
+}
+
+fn reload(
+    alloc: Allocator,
+    tag_list_view: *TagListView,
+    load_opts: LoadOptions,
+) !void {
+    // @TODO: restore expanded state
+    //  this would involve keeping a list of each filename and
+    //  its exanded state, comparing them to the new and setting
+    //  accordingly
+    const list_index = tag_list_view.list_index;
+    const list_item_index = tag_list_view.list_item_index;
+
+    tag_list_view.deinit(alloc);
+    tag_list_view.* = try load(alloc, load_opts);
+
+    tag_list_view.list_index = @min(list_index, tag_list_view.tag_lists.len - 1);
+
+    if (tag_list_view.list_index == list_index and list_item_index != null) {
+        const tag_list: TagList = tag_list_view.tag_lists.items(.list)[list_index];
+        tag_list_view.list_item_index = @min(list_item_index.?, tag_list.tag_items.len - 1);
     }
 }

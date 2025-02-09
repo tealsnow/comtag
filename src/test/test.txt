@@ -28,3 +28,7 @@ foo bar // @FOO: bar foo
 
 baz // @baz: ...
      // not continued
+
+// @ACTUAL_TODO: Support this properly
+// @SOME_TAG: asdf
+//  @NESTED_TAG: foo bar
