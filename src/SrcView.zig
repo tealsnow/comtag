@@ -1,11 +1,21 @@
 const TagList = @import("TagList.zig");
 const TagListView = @import("TagListView.zig");
 const Colors = @import("Colors.zig");
+const status_bar_view_height = @import("StatusBarView.zig").height;
 
 const vaxis = @import("vaxis");
 const Window = vaxis.Window;
 
-pub fn renderSrcView(win: Window, colors: *Colors, tag_list_view: *TagListView) void {
+pub fn window(parent: Window, tag_list_width: u16) Window {
+    return parent.child(.{
+        .x_off = tag_list_width,
+        .y_off = 0,
+        .height = parent.height - status_bar_view_height,
+        .width = parent.width - tag_list_width,
+    });
+}
+
+pub fn render(win: Window, colors: *Colors, tag_list_view: *TagListView) void {
     win.fill(.{ .style = .{ .bg = colors.bg_default } });
 
     const current_list: TagList = tag_list_view.tag_lists.items(.list)[tag_list_view.list_index];
@@ -56,7 +66,7 @@ pub fn renderSrcView(win: Window, colors: *Colors, tag_list_view: *TagListView) 
             }
         } else {
             // @FIXME: on files smaller than the window height not having
-            //  the `- 1` indexs by 1 out of bounds, where on files larger
+            //  the `- 1` causes an off by 1 panic, where on files larger
             //  the final line in the view is not drawn
             for (lines[section_end_idx..(section_end_idx + padding - 1)]) |line| {
                 _ = win.printSegment(.{

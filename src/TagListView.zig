@@ -10,6 +10,8 @@ const Segment = vaxis.Segment;
 
 const TagListView = @This();
 
+const status_bar_view_height = @import("StatusBarView.zig").height;
+
 list_index: u32 = 0,
 list_item_index: ?u31 = null,
 tag_lists: std.MultiArrayList(struct {
@@ -89,8 +91,17 @@ pub fn toggleExpanded(self: *TagListView) void {
     }
 }
 
-pub fn draw(self: *TagListView, window: Window, colors: *Colors, arena: Allocator) !void {
-    window.fill(.{ .style = .{ .bg = colors.bg_tag_list } });
+pub fn window(self: *TagListView, parent: Window) Window {
+    return parent.child(.{
+        .x_off = 0,
+        .y_off = 0,
+        .height = parent.height - status_bar_view_height,
+        .width = self.width,
+    });
+}
+
+pub fn draw(self: *TagListView, win: Window, colors: *Colors, arena: Allocator) !void {
+    win.fill(.{ .style = .{ .bg = colors.bg_tag_list } });
 
     var y: i17 = 0;
     for (self.tag_lists.items(.list), 0..) |tag_list, tag_list_i| {
@@ -104,11 +115,11 @@ pub fn draw(self: *TagListView, window: Window, colors: *Colors, arena: Allocato
         else
             colors.bg_tag_list;
 
-        const tag_list_row = window.child(.{
+        const tag_list_row = win.child(.{
             .x_off = 0,
             .y_off = y,
             .height = 1,
-            .width = window.width,
+            .width = win.width,
         });
 
         const expanded = self.tag_lists.get(tag_list_i).expanded;
@@ -128,8 +139,7 @@ pub fn draw(self: *TagListView, window: Window, colors: *Colors, arena: Allocato
         );
         y += 1;
 
-        if (!expanded)
-            continue;
+        if (!expanded) continue;
 
         var max_line_len: usize = 0;
         for (tag_list.tag_items) |item| {
@@ -154,11 +164,11 @@ pub fn draw(self: *TagListView, window: Window, colors: *Colors, arena: Allocato
             else
                 colors.bg_tag_list;
 
-            const tag_item_row = window.child(.{
+            const tag_item_row = win.child(.{
                 .x_off = 0,
                 .y_off = y,
                 .height = 1,
-                .width = window.width,
+                .width = win.width,
             });
 
             const tag_color = colors.getTagColor(item.tag) orelse .default;

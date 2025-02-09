@@ -6,8 +6,9 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const read = @import("read.zig");
 const TagList = @import("TagList.zig");
 const TagListView = @import("TagListView.zig");
+const StatusBarView = @import("StatusBarView.zig");
 const Colors = @import("Colors.zig");
-const renderSrcView = @import("renderSrcView.zig").renderSrcView;
+const SrcView = @import("SrcView.zig");
 
 const vaxis = @import("vaxis");
 const Cell = vaxis.Cell;
@@ -114,7 +115,6 @@ pub fn main() !void {
     try vx.enterAltScreen(tty_writer);
     try vx.queryTerminal(tty_writer, 1 * std.time.ns_per_s);
 
-    // @TODO: put controls hints here
     var status_bar_view = StatusBarView{
         .left_text = "left status bar",
         .right_text = "right status bar",
@@ -190,34 +190,17 @@ pub fn main() !void {
             .winsize => |ws| try vx.resize(alloc, tty.anyWriter(), ws),
         }
 
-        const win = vx.window();
-        win.clear();
-        // win.fill(.{ .style = .{ .bg = colors.bg_default } });
+        const root = vx.window();
+        root.clear();
 
-        const status_bar_height = 1;
-        const status_bar = win.child(.{
-            .x_off = 0,
-            .y_off = win.height - status_bar_height,
-            .width = win.width,
-            .height = status_bar_height,
-        });
-        status_bar_view.draw(status_bar, &colors);
+        const status_bar_win = StatusBarView.window(root);
+        status_bar_view.draw(status_bar_win, &colors);
 
-        const tag_list_win = win.child(.{
-            .x_off = 0,
-            .y_off = 0,
-            .height = win.height - status_bar_height,
-            .width = tag_list_view.width,
-        });
+        const tag_list_win = tag_list_view.window(root);
         try tag_list_view.draw(tag_list_win, &colors, arena);
 
-        const src_win = win.child(.{
-            .x_off = tag_list_view.width,
-            .y_off = 0,
-            .height = win.height - status_bar_height,
-            .width = win.width - tag_list_win.width,
-        });
-        renderSrcView(src_win, &colors, &tag_list_view);
+        const src_win = SrcView.window(root, tag_list_view.width);
+        SrcView.render(src_win, &colors, &tag_list_view);
 
         try vx.render(tty_writer);
         try tty_buffered_writer.flush();
@@ -226,38 +209,6 @@ pub fn main() !void {
         _ = arena_allocator.reset(.retain_capacity);
     }
 }
-
-// @FIXME: Do we still want this?
-const StatusBarView = struct {
-    // @TODO: Add support for both allocated and unallocated strings here
-    left_text: []const u8,
-    right_text: []const u8,
-
-    pub fn draw(self: *StatusBarView, window: Window, colors: *Colors) void {
-        window.fill(.{ .style = .{ .bg = colors.bg_status_bar } });
-
-        _ = window.printSegment(
-            .{
-                .text = self.left_text,
-                .style = .{ .bg = colors.bg_status_bar },
-            },
-            .{},
-        );
-
-        const right_status_bar_segment = window.child(.{
-            .x_off = @intCast(window.width - self.right_text.len),
-            .width = @intCast(self.right_text.len),
-            .height = window.height,
-        });
-        _ = right_status_bar_segment.printSegment(
-            .{
-                .text = self.right_text,
-                .style = .{ .bg = colors.bg_status_bar },
-            },
-            .{},
-        );
-    }
-};
 
 const LoadOptions = union(enum) {
     file: []const u8,
